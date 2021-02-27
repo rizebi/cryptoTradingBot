@@ -23,14 +23,15 @@ lookBackIntevals = 5
 def runBot(inputFile):
 
   #################### Initializations
-  currentDollars = 100
+  initialDollars = 100
+  currentDollars = initialDollars
   doWeHaveCrypto = False
   history = []
   peakIndex = 0
   buyingPrice = 0
   maximumPrice = 0
   cryptoQuantity = 0
-  totalGain = 0
+  totalFeesPaid = 0
   numberOfBuyings = 0
   actionDatapoint = 0
   currentDatapoint = 0
@@ -85,8 +86,6 @@ def runBot(inputFile):
       print("buyingPrice = " + str(buyingPrice))
       print("maximumPrice = " + str(maximumPrice))
 
-    print("totalGain = " + str(totalGain))
-
     if doWeHaveCrypto == True:
       if currentPrice > maximumPrice:
         maximumPrice = currentPrice
@@ -97,19 +96,25 @@ def runBot(inputFile):
 
       if peakIndex >= 0:
         gain = aquisitionDiffPrice * cryptoQuantity
-        #totalGain += gain
-        print("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade: " + str(gain) + "$.")
+        print("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade (no fees calculated): " + str(gain) + "$.")
         continue
       else:
         # peakIndex < 0
         if peakIndex < (-1) * peakIndexTreshold:
           # We exceeded treshold, get out
-          gainOrLoss = aquisitionDiffPrice * cryptoQuantity
-          totalGain += gainOrLoss
-          print("peakIndex = " + str(peakIndex))
-          print("############################################ SELL (" + str(currentDatapoint) + "). Treshold exceeded. WE HAVE GAIN/LOSS: " + str(gainOrLoss) + "$.")
+          # SELL
           currentDollars = cryptoQuantity * currentPrice
+          # FEES
+          currentFee = feesPercentage * currentDollars
+          totalFeesPaid += feesPercentage * currentDollars
+          print("currentFee = " + str(currentFee))
+          print("currentDollars BEFORE FEES = " + str(currentDollars))
           currentDollars -= feesPercentage * currentDollars
+          print("currentDollars AFTER FEES = " + str(currentDollars))
+          gainOrLoss = (currentPrice - buyingPrice) * cryptoQuantity
+          print("gainOrLoss = " + str(gainOrLoss))
+          print("currentDollars = " + str(currentDollars))
+          print("############################################ SELL (" + str(currentDatapoint) + "). Treshold exceeded. WE HAVE GAIN/LOSS: " + str(gainOrLoss) + "$.")
           doWeHaveCrypto = False
           actionDatapoint = currentDatapoint
           cryptoQuantity = 0
@@ -123,11 +128,19 @@ def runBot(inputFile):
         if currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy:
           print("WAIT FOR COOLDOWN. No selling.")
           continue
-        gainOrLoss = aquisitionDiffPrice * cryptoQuantity
-        totalGain += gainOrLoss
-        print("############################################ SELL (" + str(currentDatapoint) + "). CurrentPrice < BuyingPrice. WE HAVE GAIN/LOSS: " + str(gainOrLoss) + "$.")
+        # SELL
         currentDollars = cryptoQuantity * currentPrice
+        # FEES
+        currentFee = feesPercentage * currentDollars
+        totalFeesPaid += feesPercentage * currentDollars
+        print("currentFee = " + str(currentFee))
+        print("currentDollars BEFORE FEES = " + str(currentDollars))
         currentDollars -= feesPercentage * currentDollars
+        print("currentDollars AFTER FEES = " + str(currentDollars))
+        gainOrLoss = (currentPrice - buyingPrice) * cryptoQuantity
+        print("gainOrLoss = " + str(gainOrLoss))
+        print("currentDollars = " + str(currentDollars))
+        print("############################################ SELL (" + str(currentDatapoint) + "). CurrentPrice < BuyingPrice. WE HAVE GAIN/LOSS: " + str(gainOrLoss) + "$.")
         actionDatapoint = currentDatapoint
         doWeHaveCrypto = False
         actionDatapoint = currentDatapoint
@@ -148,11 +161,20 @@ def runBot(inputFile):
           if currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy:
             print("WAIT FOR COOLDOWN. No buying.")
             continue
+          # BUY
+          # FEES
+          currentFee = feesPercentage * currentDollars
+          totalFeesPaid += feesPercentage * currentDollars
+          print("currentFee = " + str(currentFee))
+          print("currentDollars BEFORE FEES = " + str(currentDollars))
+          currentDollars -= feesPercentage * currentDollars
+          print("currentDollars AFTER FEES = " + str(currentDollars))
+
+          cryptoQuantity = currentDollars / currentPrice
+          print("cryptoQuantity = " + str(cryptoQuantity))
           print("############################################ BUY (" + str(currentDatapoint) + "). Market going up.")
           doWeHaveCrypto = True
           numberOfBuyings += 1
-          cryptoQuantity = currentDollars / currentPrice
-          cryptoQuantity -= feesPercentage * cryptoQuantity
           buyingPrice = currentPrice
           actionDatapoint = currentDatapoint
           maximumPrice = currentPrice
@@ -165,9 +187,17 @@ def runBot(inputFile):
   print("########STATS#########")
   print("######################")
   print("######################")
-  print("totalGain = " + str(totalGain))
+  print("totalFeesPaid = " + str(totalFeesPaid))
   print("numberOfBuyings = " + str(numberOfBuyings))
+  print("doWeHaveCrypto = " + str(doWeHaveCrypto))
+  if doWeHaveCrypto == True:
+    print("buyingPrice = " + str(buyingPrice))
+    print("cryptoQuantity = " + str(cryptoQuantity))
+    print("Earnings/Losses = " + str(cryptoQuantity * currentPrice - initialDollars))
+  else:
+    print("currentDollars = " + str(currentDollars))
+    print("Earnings/Losses = " + str(currentDollars - initialDollars))
 
 
 if __name__ == "__main__":
-  runBot("2019-01.csv")
+  runBot("2018.csv")

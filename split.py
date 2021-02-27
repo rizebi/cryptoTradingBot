@@ -5,9 +5,9 @@ complete = open("./Datasets/complete.csv", "r")
 complete = complete.read()
 
 
-dayToGet = "157783674"
-dayAfterToGet = "160937262"
-name = "202000"
+dayToGet = "15147648"
+dayAfterToGet = "15463008"
+name = "2018"
 
 complete = complete.split(dayToGet, 1)[1].split(dayAfterToGet, 1)[0]
 
