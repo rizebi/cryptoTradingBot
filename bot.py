@@ -34,7 +34,7 @@ def runBot(inputFile):
   actionDatapoint = 0
   currentDatapoint = 0
 
-  data = open("./Datasets/" + inputFile, "r")
+  data = open("/Users/eusebiu.rizescu/Data/Code/Crypto/Datasets/" + inputFile, "r")
   data = data.read().split("\n")[0:-1]
 
   i = 0
