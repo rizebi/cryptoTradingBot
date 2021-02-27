@@ -4,20 +4,21 @@ import time
 # Timestamp,Open,High,Low,Close,Volume_(BTC),Volume_(Currency),Weighted_Price
 
 #################### Tunable parameters
-# The bot will not do anything if it does not have "minimumHistory" datapoints in history
-minimumHistory = 5
-
 # Sell if difference between maximum price for current trade - current price > peakIndexTreshold
 # This does not respect cooldown! (if treshold is exceeded, will sell even on next datapoint)
 peakIndexTreshold = 0.00005
 
-# Buy if difference between current price and 5 datapoints ago is bigger than last5IndexTreshold
+# Buy if difference between current price and lookBackIntevals datapoints ago is bigger than lastLookBackIntevalsIndexTreshold
 # Currently this seems not to matter
-last5IndexTreshold = 0.000005
+lastLookBackIntevalsIndexTreshold = 0.000005
 cooldownDatapoints = 2
 feesPercentage = 0.001
+
 # Mow many datapoints to aggregate (average)
 aggregatedBy = 240
+# The bot will buy if  the current price is above average for lookBackIntevals
+# These are big intervals. Aggregated ones
+lookBackIntevals = 5
 
 def runBot(inputFile):
 
@@ -34,45 +35,49 @@ def runBot(inputFile):
   actionDatapoint = 0
   currentDatapoint = 0
 
+  # Read data
   data = open("/Users/eusebiu.rizescu/Data/Code/Crypto/Datasets/" + inputFile, "r")
   data = data.read().split("\n")[0:-1]
 
-  i = 0
-  while i < len(data) - aggregatedBy:
-    # Aggregate by "aggregatedBy" datapoints
-    suma = 0
-    j = 0
-    while j < aggregatedBy:
-      if len(data[i].split(",")) > 1:
-        current = data[i].split(",")[1]
-      else:
-        current = data[i]
-      if current.lower() == "nan":
-        i += 1
-        continue
-      suma += float(current)
-      j += 1
-      i += 1
-
-    price = suma / aggregatedBy
-    currentDatapoint += 1
-
-    print("###############################################################################")
-    print("currentPrice = " + str(price))
-    history.append(price)
-    if len(history) < minimumHistory:
-      print("Small history. Continue")
+  # Sanitize data
+  dataPoints = []
+  for element in data:
+    if "nan" in element.lower():
       continue
+    if len(element.split(",")) > 1:
+      dataPoints.append(float(element.split(",")[1]))
+    else:
+      dataPoints.append(float(element))
+
+  while currentDatapoint < len(dataPoints):
+    print("[Datapoint " + str(currentDatapoint) + "] ######################################################")
+    history = []
+    if currentDatapoint < lookBackIntevals * aggregatedBy - 1:
+      print("Too few data to aggregate")
+      currentDatapoint += 1
+      continue
+    i = currentDatapoint - (lookBackIntevals * aggregatedBy) + 1
+    while i <= currentDatapoint:
+      suma = 0
+      j = 0
+      while j < aggregatedBy:
+        suma += dataPoints[i]
+        i += 1
+        j += 1
+      history.append(suma/aggregatedBy)
+    currentDatapoint += 1
     # Now the logic comes. To buy, to wait, to sell
     currentPrice = history[-1]
-    # Calculate change in the last 5 datapoints
-    #print("price5Datapoints = " + str(history[-10]))
-    #average5DataPointsDiff = currentPrice - history[-5]
-    average5DataPoints = sum(history[-5:])/5
-    average5DataPointsDiff = currentPrice - average5DataPoints
-    #print("average5DataPointsDiff = " + str(average5DataPointsDiff))
-    average5DatapointsIndex = average5DataPointsDiff / average5DataPoints
-    #print("average5DatapointsIndex = " + str(average5DatapointsIndex))
+    print("currentPrice = " + str(currentPrice))
+
+    # Calculate change in the last lookBackIntevals datapoints
+    #print("priceLookBackIntevalsDatapoints = " + str(history[-10]))
+    #averageLookBackIntevalsDataPointsDiff = currentPrice - history[(-1) * LookBackIntevals]
+    averageLookBackIntevalsDataPoints = sum(history[(-1) * lookBackIntevals:])/lookBackIntevals
+    averageLookBackIntevalsDataPointsDiff = currentPrice - averageLookBackIntevalsDataPoints
+    #print("averageLookBackIntevalsDataPointsDiff = " + str(averageLookBackIntevalsDataPointsDiff))
+    averageLookBackIntevalsDatapointsIndex = averageLookBackIntevalsDataPointsDiff / averageLookBackIntevalsDataPoints
+    #print("averageLookBackIntevalsDatapointsIndex = " + str(averageLookBackIntevalsDatapointsIndex))
 
     # Print stats
     print("doWeHaveCrypto = " + str(doWeHaveCrypto))
@@ -115,8 +120,8 @@ def runBot(inputFile):
           print("Treshold not exceeded. KEEP")
           continue
       if currentPrice < buyingPrice:
-        if currentDatapoint - actionDatapoint < cooldownDatapoints:
-          print("WAIT FOR COOLDOWN")
+        if currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy:
+          print("WAIT FOR COOLDOWN. No selling.")
           continue
         gainOrLoss = aquisitionDiffPrice * cryptoQuantity
         totalGain += gainOrLoss
@@ -132,16 +137,16 @@ def runBot(inputFile):
     else:
       # We do not have crypto
       # Should we buy?
-      if average5DatapointsIndex < 0:
+      if averageLookBackIntevalsDatapointsIndex < 0:
         print("Market going down. Keep waiting.")
         continue
       else:
-        if average5DatapointsIndex < last5IndexTreshold:
+        if averageLookBackIntevalsDatapointsIndex < lastLookBackIntevalsIndexTreshold:
           print("Too little increase. Not buying. Keep waiting.")
           continue
         else:
-          if currentDatapoint - actionDatapoint < cooldownDatapoints:
-            print("WAIT FOR COOLDOWN")
+          if currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy:
+            print("WAIT FOR COOLDOWN. No buying.")
             continue
           print("############################################ BUY (" + str(currentDatapoint) + "). Market going up.")
           doWeHaveCrypto = True
@@ -165,4 +170,4 @@ def runBot(inputFile):
 
 
 if __name__ == "__main__":
-  runBot("2020.csv")
+  runBot("2019-01.csv")
