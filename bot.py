@@ -35,6 +35,8 @@ def runBot(inputFile):
   numberOfBuyings = 0
   actionDatapoint = 0
   currentDatapoint = 0
+  # action, currentPrice, currentDollars, cryptoQuantity, gainOrLoss
+  tradesHistory = []
 
   # Read data
   data = open("/Users/eusebiu.rizescu/Data/Code/Crypto/Datasets/" + inputFile, "r")
@@ -112,6 +114,7 @@ def runBot(inputFile):
           currentDollars -= feesPercentage * currentDollars
           print("currentDollars AFTER FEES = " + str(currentDollars))
           gainOrLoss = (currentPrice - buyingPrice) * cryptoQuantity
+          gainOrLoss -= currentFee
           print("gainOrLoss = " + str(gainOrLoss))
           print("currentDollars = " + str(currentDollars))
           print("############################################ SELL (" + str(currentDatapoint) + "). Treshold exceeded. WE HAVE GAIN/LOSS: " + str(gainOrLoss) + "$.")
@@ -119,6 +122,7 @@ def runBot(inputFile):
           actionDatapoint = currentDatapoint
           cryptoQuantity = 0
           buyingPrice = 0
+          tradesHistory.append(("SELL", currentDatapoint, currentPrice, currentDollars, cryptoQuantity, gainOrLoss))
           continue
         else:
           # We did not exceeded treshold, maybe we will come back
@@ -138,6 +142,7 @@ def runBot(inputFile):
         currentDollars -= feesPercentage * currentDollars
         print("currentDollars AFTER FEES = " + str(currentDollars))
         gainOrLoss = (currentPrice - buyingPrice) * cryptoQuantity
+        gainOrLoss -= currentFee
         print("gainOrLoss = " + str(gainOrLoss))
         print("currentDollars = " + str(currentDollars))
         print("############################################ SELL (" + str(currentDatapoint) + "). CurrentPrice < BuyingPrice. WE HAVE GAIN/LOSS: " + str(gainOrLoss) + "$.")
@@ -146,6 +151,7 @@ def runBot(inputFile):
         actionDatapoint = currentDatapoint
         cryptoQuantity = 0
         buyingPrice = 0
+        tradesHistory.append(("SELL", currentDatapoint, currentPrice, currentDollars, cryptoQuantity, gainOrLoss))
         continue
     else:
       # We do not have crypto
@@ -169,7 +175,7 @@ def runBot(inputFile):
           print("currentDollars BEFORE FEES = " + str(currentDollars))
           currentDollars -= feesPercentage * currentDollars
           print("currentDollars AFTER FEES = " + str(currentDollars))
-
+          gainOrLoss = (-1) * currentFee
           cryptoQuantity = currentDollars / currentPrice
           print("cryptoQuantity = " + str(cryptoQuantity))
           print("############################################ BUY (" + str(currentDatapoint) + "). Market going up.")
@@ -179,6 +185,7 @@ def runBot(inputFile):
           actionDatapoint = currentDatapoint
           maximumPrice = currentPrice
           currentDollars = 0
+          tradesHistory.append(("BUY", currentDatapoint, currentPrice, currentDollars, cryptoQuantity, gainOrLoss))
           continue
 
 
@@ -187,6 +194,17 @@ def runBot(inputFile):
   print("########STATS#########")
   print("######################")
   print("######################")
+  print("initialDollars = " + str(initialDollars))
+
+  print("Trades History:")
+  print("action, currentPrice, currentDollars, cryptoQuantity, gainOrLoss")
+  totalGainOrLoss = 0
+  for trade in tradesHistory:
+    totalGainOrLoss += trade[5]
+    print (trade)
+  print("######################")
+  print("Summary:")
+  print("totalGainOrLoss = " + str(totalGainOrLoss))
   print("totalFeesPaid = " + str(totalFeesPaid))
   print("numberOfBuyings = " + str(numberOfBuyings))
   print("doWeHaveCrypto = " + str(doWeHaveCrypto))
@@ -200,4 +218,4 @@ def runBot(inputFile):
 
 
 if __name__ == "__main__":
-  runBot("2018.csv")
+  runBot("2019-01.csv")
