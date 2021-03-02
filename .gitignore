@@ -2,3 +2,4 @@
 configuration.cfg
 database.db
 commands
+/logs/

@@ -79,6 +79,16 @@ def getCoinPrice(log, client, coin):
     time.sleep(5)
   return None
 
+def savePriceInDatabase(log, currentTime, coin, currentPrice):
+  try:
+    log.info("INSERT INTO price_history VALUES (" + str(currentTime) + "," + coin + "," + str(currentPrice) + ")")
+    databaseConnection.execute("INSERT INTO price_history VALUES (" + str(currentTime) + ",'" + coin + "'," + str(currentPrice) + ")")
+    databaseConnection.commit()
+  except Exception as e:
+    message = "[ERROR] When saving in the database: " + str(e)
+    log.info(message)
+    sendMessage(log, message)
+
 # The function should never end, that scrape, and write in the database
 def scrape(log):
   log.info("Starting scraping.")
@@ -92,9 +102,9 @@ def scrape(log):
         if currentPrice == None:
           message = "Got no data now for coin " + coin + ". Continuing.."
           continue
-
         log.info("Got: " + currentPrice)
-
+        currentTime = int(time.time())
+        savePriceInDatabase(log, currentTime, coin, currentPrice)
 
     endTime = time.time()
     # Sleep until 60 seconds
@@ -146,8 +156,6 @@ def mainFunction():
 
     # The function should never end, that scrape, and write in the database
     scrape(log)
-
-
 
     # Commit and close
     try:
