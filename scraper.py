@@ -10,11 +10,10 @@ import traceback # for error handling
 import configparser # for configuration parser
 
 from binance.client import Client
-#from binance.exceptions import BinanceAPIException
 
 ##### Constants #####
 currentDir = os.getcwd()
-configFile = "./configuration.cfg" #"/docker/myprecious/configuration.cfg"
+configFile = "./configuration.cfg"
 configSection = "configuration"
 
 # Logging function
@@ -41,12 +40,17 @@ def getLogger():
 
 # Function that sends a message to Telegram
 def sendMessage(log, message):
-  payload = {
-      'chat_id': config["bot_chat_id"],
-      'text': message,
-      'parse_mode': 'HTML'
-  }
-  return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
+  try:
+    payload = {
+        'chat_id': config["bot_chat_id"],
+        'text': message,
+        'parse_mode': 'HTML'
+    }
+    return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
+  except Exception as e:
+    log.info("Error when sending Telegram message: {}".format(e))
+    tracebackError = traceback.format_exc()
+    log.info(tracebackError)
 
 def createTable(log):
   log.info("Check if table exits")
@@ -196,7 +200,7 @@ def mainFunction():
 if __name__ == "__main__":
 
   if len(sys.argv) != 1:
-    log.info("Wrong number of parameters. Use: python startBackup.py")
+    log.info("Wrong number of parameters. Use: python scraper.py")
     sys.exit(99)
   else:
     mainFunction()
