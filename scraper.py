@@ -17,7 +17,6 @@ currentDir = os.getcwd()
 configFile = "./configuration.cfg" #"/docker/myprecious/configuration.cfg"
 configSection = "configuration"
 
-
 # Logging function
 def getLogger():
   # Create logs folder if not exists
@@ -47,7 +46,7 @@ def sendMessage(log, message):
       'text': message,
       'parse_mode': 'HTML'
   }
-  #return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
+  return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
 
 def createTable(log):
   log.info("Check if table exits")
@@ -92,9 +91,7 @@ def savePriceInDatabase(log, currentTime, coin, currentPrice):
 # The function should never end, that scrape, and write in the database
 def scrape(log):
   log.info("Starting scraping.")
-
   client = Client(config["api_key"], config["api_secret_key"])
-
   while True:
     startTime = time.time()
     for coin in config["coins_to_scrape"].split("|"):
@@ -110,8 +107,6 @@ def scrape(log):
     # Sleep until 60 seconds
     if int(config["seconds_between_scrapes"]) - (endTime - startTime) > 0:
       time.sleep(int(config["seconds_between_scrapes"]) - (endTime - startTime))
-
-
 
 # Main function
 def mainFunction():
@@ -131,8 +126,6 @@ def mainFunction():
     configObj.read(configFile)
     global config
     config = configObj._sections[configSection]
-    #databaseFile = config.get(configSection, "databaseFile")
-
 
     # Create the database if it not exists
     if os.path.isfile(config["database_file"]) is False:
