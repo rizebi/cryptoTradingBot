@@ -147,7 +147,7 @@ def mainFunction():
     except Exception as e:
       message = "[FATAL] Couldn't connect to the database. Investigate manually"
       log.info(message)
-      log.info(e.output)
+      log.info(e)
       sendMessage(log, message)
       sys.exit(2)
 
