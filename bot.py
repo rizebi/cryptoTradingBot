@@ -469,7 +469,8 @@ def trade(log):
           continue
 
       if currentPrice < buyingPrice:
-        if currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy:
+        # No need to wait for cooldown if script was just restarted
+        if (currentDatapoint >= cooldownDatapoints * aggregatedBy) and (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy):
           log.info("WAIT FOR COOLDOWN. No selling.")
           time.sleep(timeBetweenRuns)
           continue
@@ -503,7 +504,8 @@ def trade(log):
           time.sleep(timeBetweenRuns)
           continue
         else:
-          if currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy:
+          # No need to wait for cooldown if script was just restarted
+          if (currentDatapoint >= cooldownDatapoints * aggregatedBy) and (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy):
             log.info("WAIT FOR COOLDOWN. No buying.")
             time.sleep(timeBetweenRuns)
             continue
