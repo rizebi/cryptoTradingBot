@@ -3,7 +3,6 @@
 #################### Initializations
 peakIndex = 0
 numberOfBuyings = 0
-actionDatapoint = 0
 # action, currentPrice, currentDollars, cryptoQuantity, gainOrLoss
 tradesHistory = []
 

@@ -10,6 +10,7 @@ import traceback # for error handling
 import configparser # for configuration parser
 
 from binance.client import Client
+from binance.exceptions import BinanceAPIException
 
 ##### Constants #####
 currentDir = os.getcwd()
@@ -43,11 +44,10 @@ def sendMessage(log, message):
   try:
     payload = {
         'chat_id': config["bot_chat_id"],
-        'text': message,
+        'text': "[bot]" + message,
         'parse_mode': 'HTML'
     }
-    # TODO uncomment
-    #return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
+    return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
   except Exception as e:
     log.info("Error when sending Telegram message: {}".format(e))
     tracebackError = traceback.format_exc()
@@ -67,53 +67,282 @@ def createTables(log):
   log.info("Table <trade_history> successfully created.")
 
 def getPriceHistory(log, coin, howMany):
+  # First, check the latest timestamp from database. If this is old, will return []
+  databaseCursor.execute("SELECT max(timestamp) FROM price_history")
+  dataPointsObj = databaseCursor.fetchall()
+  currentTime = time.time()
+  if currentTime - float(dataPointsObj[0][0]) > 300:
+    message = "[ERROR] Too old price history in database. Maybe scraper is down. Skipping the bot run for this time."
+    log.info(message)
+    sendMessage(log, message)
+    return []
+
   databaseCursor.execute("SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(howMany))
-  historyObj = databaseCursor.fetchall()
-  historyObj.reverse()
-  history = []
-  for price in historyObj:
-    history.append(price[0])
-  return history
+  dataPointsObj = databaseCursor.fetchall()
+  dataPointsObj.reverse()
+  dataPoints = []
+  for price in dataPointsObj:
+    dataPoints.append(price[0])
+  return dataPoints
 
 # Function that reads from DB the last transaction
 def getLastTransactionStatus(log, coin):
+  # Get current balance
+  currentDollars = getCurrencyBalance(log, "USDT")
+  cryptoQuantity = getCurrencyBalance(log, "BTC")
+
   databaseCursor.execute("SELECT * FROM trade_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(1))
   lastTransaction = databaseCursor.fetchall()
   if len(lastTransaction) == 0:
     log.info("No history on the database. Will go with the default option: no Crypto")
-    return {"timestamp": 0, "doWeHaveCrypto": False, "currentPrice": 0, "currentDollars": 0, "cryptoQuantity": 0, "gainOrLoss": 0}
+    return {"timestamp": 0, "doWeHaveCrypto": False, "buyingPrice": 0, "currentDollars": 0, "cryptoQuantity": 0, "gainOrLoss": 0}
   else:
-    if lastTransaction[2] == "BUY":
+    if lastTransaction[0][2] == "BUY":
       doWeHaveCrypto = True
+      return {"timestamp": lastTransaction[0][0], "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": lastTransaction[0][3], "currentDollars": currentDollars, "cryptoQuantity": cryptoQuantity, "gainOrLoss": lastTransaction[0][6]}
     else:
       doWeHaveCrypto = False
-      return {"timestamp": lastTransaction[0], "doWeHaveCrypto": doWeHaveCrypto, "currentPrice": lastTransaction[3], "currentDollars": lastTransaction[4], "cryptoQuantity": lastTransaction[5], "gainOrLoss": lastTransaction[6]}
+      return {"timestamp": lastTransaction[0][0], "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": 0, "currentDollars": currentDollars, "cryptoQuantity": cryptoQuantity, "gainOrLoss": lastTransaction[0][6]}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
 def getMaximumPriceAfter(log, lastBuyingTimestamp):
-  databaseCursor.execute("SELECT * max(price) price_history WHERE coin='" + coin + "' AND timestamp > " + lastBuyingTimestamp)
+  coin = "BTCUSDT"
+  databaseCursor.execute("SELECT max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + lastBuyingTimestamp)
   maximumPrice = databaseCursor.fetchall()
-  return maximumPrice[0]
+  return maximumPrice[0][0]
 
-def getCurrentDollars(log):
-  pass
-  # TODO implement
+def getCurrencyBalance(log, currency):
+  i = 0
+  while i <= 5:
+    i += 1
+    try:
+      if i > 1:
+        log.info("Retry number " + str(i) + " to get account balance.")
+      balances = client.get_account()[u'balances']
+      break
+    except BinanceAPIException as e:
+      message = "[ERROR API] Couldn't get balances from Binance: " + str(e)
+      log.info(message)
+      log.info(e)
+    except Exception as e:
+      message = "[ERROR] Couldn't get balances from Binance: " + str(e)
+      log.info(message)
+      log.info(e)
+    time.sleep(5)
+  if i == 11:
+    message = "[ERROR] Couldn't get balances from Binance after 10 retries"
+    log.info(message)
+    sendMessage(log, message)
+    return (-1)
 
-def getCryptoQuantity(log):
-  pass
-  # TODO implement
+  for currency_balance in balances:
+      if currency_balance[u'asset'] == currency:
+          return float(currency_balance[u'free'])
+  return None
+
+def getCurrentCoinPrice(log, coin):
+  i = 0
+  while i <= 10:
+    i += 1
+    if i > 1:
+      log.info("Retry number " + str(i) + " for coin: '" + coin + "'")
+    try:
+      return float(client.get_symbol_ticker(symbol=coin)["price"])
+    except BinanceAPIException as e:
+      message = "[ERROR API] When getting current price: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+    except Exception as e:
+      message = "[ERROR] When getting current price: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+    time.sleep(1)
+  if i == 11:
+    message = "[ERROR] Couldn't get current price from Binance after 10 retries"
+    log.info(message)
+    sendMessage(log, message)
+  return None
+
+def wait_for_order(log, symbol, order_id):
+  log.info("Wait for order")
+  i = 0
+  while True:
+    i += 1
+    try:
+      order_status = client.get_order(symbol="BTCUSDT", orderId=order_id)
+      break
+    except BinanceAPIException as e:
+      message = "[ERROR API] When waiting for order: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+    except Exception as e:
+      message = "[ERROR] When waiting for order: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+
+    if i == 10 or i == 100 or i == 500:
+      message = "[ERROR] Couldn't wait for order after " + str(i) " retries"
+      log.info(message)
+      sendMessage(log, message)
+
+  log.info(order_status)
+
+  i = 0
+  while order_status[u'status'] != 'FILLED':
+    i += 1
+    try:
+      order_status = self.BinanceClient.get_order(
+          symbol="BTCUSDT", orderId=order_id)
+    except BinanceAPIException as e:
+      message = "[ERROR API] when querying if status is FILLED: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+    except Exception as e:
+      message = "[ERROR] when querying if status is FILLED: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+
+    if i == 10 or i == 100 or i == 500:
+      message = "[ERROR] Couldn't query if status is FILLED " + str(i) " retries"
+      log.info(message)
+      sendMessage(log, message)
+
+  return order_status
 
 def buyCrypto(log):
-  pass
-  # TODO implement
+  currentDollars = getCurrencyBalance(log, 'USDT')
+
+  order = None
+  i = 0
+  while order is None:
+    i += 1
+    try:
+      currentPrice = getCurrentCoinPrice(log, 'BTCUSDT')
+      quantityWanted = currentDollars / currentPrice
+      quantityWanted = quantityWanted - 0.01 * quantityWanted
+      quantityWanted = float(str(quantityWanted).split(".")[0] + "." + str(quantityWanted).split(".")[1][:6])
+      log.info("quantity = " + str(quantityWanted))
+      order = client.order_market_buy(
+       symbol="BTCUSDT", quantity=(quantityWanted)
+      )
+    except BinanceAPIException as e:
+      message = "[ERROR API] when placing BUY crypto order: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+    except Exception as e:
+      message = "[ERROR] when placing BUY crypto order: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+
+    if i == 10 or i == 100 or i == 500:
+      message = "[ERROR] Couldn't place BUY crypto order " + str(i) " retries"
+      log.info(message)
+      sendMessage(log, message)
+
+  log.info("BUY crypto order placed:")
+  log.info(order)
+
+  # Binance server can take some time to save the order
+  log.info("Waiting for Binance")
+
+  stat = wait_for_order(log, "BTCUSDT", order[u'orderId'])
+
+  oldDollars = currentDollars
+  newDollars = getCurrencyBalance(log, 'USDT')
+  while newDollars >= oldDollars:
+      newDollars = getCurrencyBalance(log, 'USDT')
+      time.sleep(5)
+
+  newCrypto = getCurrencyBalance(log, 'BTC')
+
+  message = "BUY crypto successful\n"
+  message += "############## BUY CRYPTO TRADE STATS #############\n"
+  message += "currentPrice = " + str(currentPrice) + "\n"
+  message += "oldDollars = " + str(oldDollars) + "\n"
+  message += "newCrypto = " + str(newCrypto) + "\n"
+  message += "####################################################"
+  log.info(message)
+  sendMessage(log, message)
 
 def sellCrypto(log):
-  pass
-  # TODO implement
+  currentCrypto = getCurrencyBalance(log, 'BTC')
+  log.info("currentCrypto = " + str(currentCrypto))
+  log.info("Try to launch a SELL Crypto order")
+
+  order = None
+  i = 0
+  while order is None:
+    i += 1
+    try:
+      currentPrice = getCurrentCoinPrice(log, 'BTCUSDT')
+      quantityWanted = float(str(currentCrypto).split(".")[0] + "." + str(currentCrypto).split(".")[1][:6])
+      log.info("quantity = " + str(quantityWanted))
+      order = client.order_market_sell(
+        symbol="BTCUSDT", quantity=(quantityWanted)
+      )
+    except BinanceAPIException as e:
+      message = "[ERROR API] when placing SELL crypto order: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+    except Exception as e:
+      message = "[ERROR] when placing SELL crypto order: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(1)
+
+    if i == 10 or i == 100 or i == 500:
+      message = "[ERROR] Couldn't place SELL crypto order " + str(i) " retries"
+      log.info(message)
+      sendMessage(log, message)
+
+  log.info("SELL crypto order placed:")
+  log.info(order)
+
+  # Binance server can take some time to save the order
+  log.info("Waiting for Binance")
+
+  stat = wait_for_order(log, "BTCUSD", order[u'orderId'])
+
+  oldCrypto = currentCrypto
+  newCrypto = getCurrencyBalance(log, 'BTC')
+  while newCrypto >= oldCrypto:
+      newCrypto = getCurrencyBalance(log, 'BTC')
+      time.sleep(5)
+
+  log.info("SOLD crypto successful")
+
+  newDollars = getCurrencyBalance(log, 'USDT')
+
+  message = "SELL crypto successful\n"
+  message += "############## SELL CRYPTO TRADE STATS #############\n"
+  message += "currentPrice = " + str(currentPrice) + "\n"
+  message += "newDollars = " + str(newDollars) + "\n"
+  message += "oldCrypto = " + str(oldCrypto) + "\n"
+  message += "####################################################"
+  log.info(message)
+  sendMessage(log, message)
 
 def insertTradeHistory(log, currentTime, coin, action, currentPrice, currentDollars, cryptoQuantity):
-  pass
-  # TODO implement
+  # Here we have to calculate the gainOrLoss
+  # For now, enter 0
+  # TODO
+  gainOrLoss = 0
+  try:
+    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + coin + "','" + action + "'," + str(currentPrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
+    log.info(query)
+    databaseConnection.execute(query)
+    databaseConnection.commit()
+  except Exception as e:
+    message = "[ERROR] When saving scraping in the database: " + str(e)
+    log.info(message)
+    sendMessage(log, message)
 
 # Function that makes the trades
 def trade(log):
@@ -141,7 +370,7 @@ def trade(log):
   status = getLastTransactionStatus(log, coin)
   lastBuyingTimestamp = status["timestamp"]
   doWeHaveCrypto = status["doWeHaveCrypto"]
-  currentPrice = status["currentPrice"]
+  buyingPrice = status["buyingPrice"]
   currentDollars = status["currentDollars"]
   cryptoQuantity = status["cryptoQuantity"]
   gainOrLoss = status["gainOrLoss"]
@@ -154,6 +383,7 @@ def trade(log):
 
   # Initialisations
   currentDatapoint = 0
+  actionDatapoint = 0
   history = []
 
   while True:
@@ -167,8 +397,9 @@ def trade(log):
       time.sleep(timeBetweenRuns)
       continue
 
-    i = currentDatapoint - (lookBackIntervals * aggregatedBy) + 1
-    while i <= currentDatapoint:
+    # len(dataPoints) == (lookBackIntervals * aggregatedBy)
+    i = 0
+    while i < len(dataPoints):
       suma = 0
       j = 0
       while j < aggregatedBy:
@@ -216,11 +447,11 @@ def trade(log):
           # SELL
           message = "[SELL at " + str(currentPrice) + "] We exceeded treshold, get out"
           log.info(message)
-          sendMessage(message)
+          sendMessage(log, message)
           sellCrypto(log)
 
           # Update variables
-          currentDollars = getCurrentDollars(log)
+          currentDollars = getCurrencyBalance(log, 'USDT')
           actionDatapoint = currentDatapoint
           doWeHaveCrypto = False
           cryptoQuantity = 0
@@ -245,11 +476,11 @@ def trade(log):
         # SELL
         message = "[SELL at " + str(currentPrice) + "] CurrentPrice < BuyingPrice"
         log.info(message)
-        sendMessage(message)
+        sendMessage(log, message)
         sellCrypto(log)
 
         # Update variables
-        currentDollars = getCurrentDollars(log)
+        currentDollars = getCurrencyBalance(log, 'USDT')
         actionDatapoint = currentDatapoint
         doWeHaveCrypto = False
         cryptoQuantity = 0
@@ -279,11 +510,11 @@ def trade(log):
           # BUY
           message = "[BUY at " + str(currentPrice) + "]"
           log.info(message)
-          sendMessage(message)
+          sendMessage(log, message)
           buyCrypto(log)
 
           # Update variables
-          cryptoQuantity = getCryptoQuantity(log)
+          cryptoQuantity = getCurrencyBalance(log, 'BTC')
           doWeHaveCrypto = True
           buyingPrice = currentPrice
           actionDatapoint = currentDatapoint
@@ -340,6 +571,10 @@ def mainFunction():
 
     # Create table if it not exists
     createTables(log)
+
+    # Get Binance client
+    global client
+    client = Client(config["api_key"], config["api_secret_key"])
 
     # The function should never end, that scrape, and write in the database
     trade(log)

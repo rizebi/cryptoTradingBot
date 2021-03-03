@@ -218,4 +218,4 @@ def runBot(inputFile):
 
 
 if __name__ == "__main__":
-  runBot("binance_inverted.csv")
+  runBot("scraped.csv")

@@ -10,6 +10,7 @@ import traceback # for error handling
 import configparser # for configuration parser
 
 from binance.client import Client
+from binance.exceptions import BinanceAPIException
 
 ##### Constants #####
 currentDir = os.getcwd()
@@ -43,7 +44,7 @@ def sendMessage(log, message):
   try:
     payload = {
         'chat_id': config["bot_chat_id"],
-        'text': message,
+        'text': "[scraper]" + message,
         'parse_mode': 'HTML'
     }
     return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
@@ -74,7 +75,12 @@ def getCoinPrice(log, client, coin):
     if i > 1:
       log.info("Retry number " + str(i) + " for coin: '" + coin + "'")
     try:
+      # Maybe try current price: get_symbol_ticker
       return client.get_avg_price(symbol=coin)["price"]
+    except BinanceAPIException as e:
+      message = "[ERROR API] When getting average price: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
     except Exception as e:
       message = "[ERROR] When getting average price: " + str(e)
       log.info(message)
@@ -84,11 +90,12 @@ def getCoinPrice(log, client, coin):
 
 def savePriceInDatabase(log, currentTime, coin, currentPrice):
   try:
-    log.info("INSERT INTO price_history VALUES (" + str(currentTime) + "," + coin + "," + str(currentPrice) + ")")
-    databaseConnection.execute("INSERT INTO price_history VALUES (" + str(currentTime) + ",'" + coin + "'," + str(currentPrice) + ")")
+    query = "INSERT INTO price_history VALUES (" + str(currentTime) + ",'" + coin + "'," + str(currentPrice) + ")"
+    log.info(query)
+    databaseConnection.execute(query)
     databaseConnection.commit()
   except Exception as e:
-    message = "[ERROR] When saving in the database: " + str(e)
+    message = "[ERROR] When saving price scraping in the database: " + str(e)
     log.info(message)
     sendMessage(log, message)
 
