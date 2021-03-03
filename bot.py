@@ -535,6 +535,8 @@ def mainFunction():
   # Initialize the logger
   log = getLogger()
   log.info("################################# New run")
+  sendMessage(log, "[INFO] Bot restarted")
+
   try:
     # Check if configuration file exists, and exit if it is not
     if os.path.isfile(configFile) is False:
