@@ -385,6 +385,8 @@ def trade(log):
   currentDatapoint = 0
   actionDatapoint = 0
   history = []
+  # This helps to not wait for a cooldown when starting the script, but also no make more than one Trade in the first cycle
+  madeFirstTrade = False
 
   while True:
     currentTime = int(time.time())
@@ -445,6 +447,8 @@ def trade(log):
         if peakIndex < (-1) * peakIndexTreshold:
           # We exceeded treshold, get out
           # SELL
+          message = "peakIndex = " + str(peakIndex) + "\n"
+          message += "peakIndexTreshold = " + str(peakIndexTreshold) + "\n"
           message = "[SELL at " + str(currentPrice) + "] We exceeded treshold, get out"
           log.info(message)
           sendMessage(log, message)
@@ -456,10 +460,10 @@ def trade(log):
           doWeHaveCrypto = False
           cryptoQuantity = 0
           buyingPrice = 0
-          time.sleep(timeBetweenRuns)
-
+          madeFirstTrade = True
           # Insert in trade_history
           insertTradeHistory(log, currentTime, coin, "SELL", currentPrice, currentDollars, 0)
+          time.sleep(timeBetweenRuns)
 
           continue
         else:
@@ -470,12 +474,14 @@ def trade(log):
 
       if currentPrice < buyingPrice:
         # No need to wait for cooldown if script was just restarted
-        if (currentDatapoint >= cooldownDatapoints * aggregatedBy) and (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy):
+        if ((madeFirstTrade == True) and (currentDatapoint <= cooldownDatapoints * aggregatedBy)) or (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy):
           log.info("WAIT FOR COOLDOWN. No selling.")
           time.sleep(timeBetweenRuns)
           continue
         # SELL
-        message = "[SELL at " + str(currentPrice) + "] CurrentPrice < BuyingPrice"
+        message = "currentPrice = " + str(currentPrice) + "\n"
+        message += "buyingPrice = " + str(buyingPrice) + "\n"
+        message += "[SELL at " + str(currentPrice) + "] CurrentPrice < BuyingPrice"
         log.info(message)
         sendMessage(log, message)
         sellCrypto(log)
@@ -486,6 +492,7 @@ def trade(log):
         doWeHaveCrypto = False
         cryptoQuantity = 0
         buyingPrice = 0
+        madeFirstTrade = True
         # Insert in trade_history
         insertTradeHistory(log, currentTime, coin, "SELL", currentPrice, currentDollars, 0)
 
@@ -505,12 +512,14 @@ def trade(log):
           continue
         else:
           # No need to wait for cooldown if script was just restarted
-          if (currentDatapoint >= cooldownDatapoints * aggregatedBy) and (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy):
+          if ((madeFirstTrade == True) and (currentDatapoint <= cooldownDatapoints * aggregatedBy)) or (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy):
             log.info("WAIT FOR COOLDOWN. No buying.")
             time.sleep(timeBetweenRuns)
             continue
           # BUY
-          message = "[BUY at " + str(currentPrice) + "]"
+          message = "averagelookBackIntervalsDatapointsIndex = " + str(averagelookBackIntervalsDatapointsIndex) + "\n"
+          message += "lastlookBackIntervalsIndexTreshold = " + str(lastlookBackIntervalsIndexTreshold) + "\n"
+          message += "[BUY at " + str(currentPrice) + "]"
           log.info(message)
           sendMessage(log, message)
           buyCrypto(log)
@@ -522,13 +531,11 @@ def trade(log):
           actionDatapoint = currentDatapoint
           maximumPrice = currentPrice
           currentDollars = 0
-
+          madeFirstTrade = True
           # Insert in trade_history
           insertTradeHistory(log, currentTime, coin, "BUY", currentPrice, 0, cryptoQuantity)
-
           time.sleep(timeBetweenRuns)
           continue
-
 
     time.sleep(timeBetweenRuns)
 
