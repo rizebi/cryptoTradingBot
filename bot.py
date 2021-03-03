@@ -183,7 +183,7 @@ def wait_for_order(log, symbol, order_id):
       time.sleep(1)
 
     if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't wait for order after " + str(i) " retries"
+      message = "[ERROR] Couldn't wait for order after " + str(i) + " retries"
       log.info(message)
       sendMessage(log, message)
 
@@ -207,7 +207,7 @@ def wait_for_order(log, symbol, order_id):
       time.sleep(1)
 
     if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't query if status is FILLED " + str(i) " retries"
+      message = "[ERROR] Couldn't query if status is FILLED " + str(i) + " retries"
       log.info(message)
       sendMessage(log, message)
 
@@ -241,7 +241,7 @@ def buyCrypto(log):
       time.sleep(1)
 
     if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't place BUY crypto order " + str(i) " retries"
+      message = "[ERROR] Couldn't place BUY crypto order " + str(i) + " retries"
       log.info(message)
       sendMessage(log, message)
 
@@ -298,7 +298,7 @@ def sellCrypto(log):
       time.sleep(1)
 
     if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't place SELL crypto order " + str(i) " retries"
+      message = "[ERROR] Couldn't place SELL crypto order " + str(i) + " retries"
       log.info(message)
       sendMessage(log, message)
 
@@ -535,8 +535,6 @@ def mainFunction():
   # Initialize the logger
   log = getLogger()
   log.info("################################# New run")
-  sendMessage(log, "[INFO] Bot restarted")
-
   try:
     # Check if configuration file exists, and exit if it is not
     if os.path.isfile(configFile) is False:
@@ -550,6 +548,8 @@ def mainFunction():
     configObj.read(configFile)
     global config
     config = configObj._sections[configSection]
+
+    sendMessage(log, "[INFO] Bot restarted")
 
     # Create the database if it not exists
     if os.path.isfile(config["database_file"]) is False:
