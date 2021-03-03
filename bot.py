@@ -449,7 +449,7 @@ def trade(log):
           # SELL
           message = "peakIndex = " + str(peakIndex) + "\n"
           message += "peakIndexTreshold = " + str(peakIndexTreshold) + "\n"
-          message = "[SELL at " + str(currentPrice) + "] We exceeded treshold, get out"
+          message += "[SELL at " + str(currentPrice) + "] We exceeded treshold, get out"
           log.info(message)
           sendMessage(log, message)
           sellCrypto(log)
