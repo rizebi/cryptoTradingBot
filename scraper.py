@@ -29,7 +29,7 @@ def getLogger():
       print("Successfully created the logs directory")
 
   now = datetime.datetime.now()
-  log_name = "" + str(now.year) + "." + '{:02d}'.format(now.month) + "." + '{:02d}'.format(now.day) + "-scraper.log"
+  log_name = "" + str(now.year) + "." + '{:02d}'.format(now.month) + "-scraper.log"
   log_name = os.path.join(currentDir, "logs", log_name)
   logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.NOTSET,
                       handlers=[
@@ -104,6 +104,9 @@ def scrape(log):
   log.info("Starting scraping.")
   client = Client(config["api_key"], config["api_secret_key"])
   while True:
+    # Update logger handler
+    log = getLogger()
+
     startTime = time.time()
     for coin in config["coins_to_scrape"].split("|"):
         currentPrice = getCoinPrice(log, client, coin)

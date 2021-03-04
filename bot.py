@@ -29,7 +29,7 @@ def getLogger():
       print("Successfully created the logs directory")
 
   now = datetime.datetime.now()
-  log_name = "" + str(now.year) + "." + '{:02d}'.format(now.month) + "." + '{:02d}'.format(now.day) + "-bot.log"
+  log_name = "" + str(now.year) + "." + '{:02d}'.format(now.month) + "-bot.log"
   log_name = os.path.join(currentDir, "logs", log_name)
   logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.NOTSET,
                       handlers=[
@@ -47,7 +47,7 @@ def sendMessage(log, message):
         'text': "[bot]" + message,
         'parse_mode': 'HTML'
     }
-    return requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
+    requests.post("https://api.telegram.org/bot{token}/sendMessage".format(token=config["bot_token"]), data=payload).content
   except Exception as e:
     log.info("Error when sending Telegram message: {}".format(e))
     tracebackError = traceback.format_exc()
@@ -226,9 +226,12 @@ def buyCrypto(log):
       quantityWanted = quantityWanted - 0.01 * quantityWanted
       quantityWanted = float(str(quantityWanted).split(".")[0] + "." + str(quantityWanted).split(".")[1][:6])
       log.info("quantity = " + str(quantityWanted))
-      order = client.order_market_buy(
-       symbol="BTCUSDT", quantity=(quantityWanted)
-      )
+      if config["dry_run"] == "true":
+        order = client.order_market_buy(symbol="BTCUSDT", quantity=(quantityWanted))
+      else:
+        message = "[INFO] Running in dry-run mode. No BUY Crypto order sent"
+        log.info(message)
+        sendMessage(log, message)
     except BinanceAPIException as e:
       message = "[ERROR API] when placing BUY crypto order: " + str(e)
       log.info(message)
@@ -245,19 +248,20 @@ def buyCrypto(log):
       log.info(message)
       sendMessage(log, message)
 
-  log.info("BUY crypto order placed:")
-  log.info(order)
+  if config["dry_run"] == "true":
+    log.info("BUY crypto order placed:")
+    log.info(order)
 
-  # Binance server can take some time to save the order
-  log.info("Waiting for Binance")
+    # Binance server can take some time to save the order
+    log.info("Waiting for Binance")
 
-  stat = wait_for_order(log, "BTCUSDT", order[u'orderId'])
+    stat = wait_for_order(log, "BTCUSDT", order[u'orderId'])
 
-  oldDollars = currentDollars
-  newDollars = getCurrencyBalance(log, 'USDT')
-  while newDollars >= oldDollars:
-      newDollars = getCurrencyBalance(log, 'USDT')
-      time.sleep(5)
+    oldDollars = currentDollars
+    newDollars = getCurrencyBalance(log, 'USDT')
+    while newDollars >= oldDollars:
+        newDollars = getCurrencyBalance(log, 'USDT')
+        time.sleep(5)
 
   newCrypto = getCurrencyBalance(log, 'BTC')
 
@@ -283,9 +287,12 @@ def sellCrypto(log):
       currentPrice = getCurrentCoinPrice(log, 'BTCUSDT')
       quantityWanted = float(str(currentCrypto).split(".")[0] + "." + str(currentCrypto).split(".")[1][:6])
       log.info("quantity = " + str(quantityWanted))
-      order = client.order_market_sell(
-        symbol="BTCUSDT", quantity=(quantityWanted)
-      )
+      if config["dry_run"] == "true":
+        order = client.order_market_sell(symbol="BTCUSDT", quantity=(quantityWanted))
+      else:
+        message = "[INFO] Running in dry-run mode. No SELL Crypto order sent"
+        log.info(message)
+        sendMessage(log, message)
     except BinanceAPIException as e:
       message = "[ERROR API] when placing SELL crypto order: " + str(e)
       log.info(message)
@@ -302,21 +309,22 @@ def sellCrypto(log):
       log.info(message)
       sendMessage(log, message)
 
-  log.info("SELL crypto order placed:")
-  log.info(order)
+  if config["dry_run"] == "true":
+    log.info("SELL crypto order placed:")
+    log.info(order)
 
-  # Binance server can take some time to save the order
-  log.info("Waiting for Binance")
+    # Binance server can take some time to save the order
+    log.info("Waiting for Binance")
 
-  stat = wait_for_order(log, "BTCUSD", order[u'orderId'])
+    stat = wait_for_order(log, "BTCUSD", order[u'orderId'])
 
-  oldCrypto = currentCrypto
-  newCrypto = getCurrencyBalance(log, 'BTC')
-  while newCrypto >= oldCrypto:
-      newCrypto = getCurrencyBalance(log, 'BTC')
-      time.sleep(5)
+    oldCrypto = currentCrypto
+    newCrypto = getCurrencyBalance(log, 'BTC')
+    while newCrypto >= oldCrypto:
+        newCrypto = getCurrencyBalance(log, 'BTC')
+        time.sleep(5)
 
-  log.info("SOLD crypto successful")
+    log.info("SOLD crypto successful")
 
   newDollars = getCurrencyBalance(log, 'USDT')
 
@@ -389,6 +397,9 @@ def trade(log):
   madeFirstTrade = False
 
   while True:
+    # Update logger handler
+    log = getLogger()
+
     currentTime = int(time.time())
     log.info("[Datapoint " + str(currentTime) + "] ######################################################")
     # Get the price history from database

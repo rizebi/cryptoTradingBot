@@ -6,11 +6,11 @@ import time
 #################### Tunable parameters
 # Sell if difference between maximum price for current trade - current price > peakIndexTreshold
 # This does not respect cooldown! (if treshold is exceeded, will sell even on next datapoint)
-peakIndexTreshold = 0.00005
+peakIndexTreshold = 0.005
 
 # Buy if difference between current price and lookBackIntervals datapoints ago is bigger than lastlookBackIntervalsIndexTreshold
 # Currently this seems not to matter
-lastlookBackIntervalsIndexTreshold = 0.000005
+lastlookBackIntervalsIndexTreshold = 0.00005
 cooldownDatapoints = 2
 feesPercentage = 0.001
 
@@ -218,4 +218,4 @@ def runBot(inputFile):
 
 
 if __name__ == "__main__":
-  runBot("scraped.csv")
+  runBot("2019-01.csv")
