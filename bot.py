@@ -12,10 +12,23 @@ import configparser # for configuration parser
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
+from binanceManager import getCurrencyBalance
+from binanceManager import buyCrypto
+from binanceManager import sellCrypto
+
+from databaseManager import createTables
+from databaseManager import getPriceHistory
+from databaseManager import getLastTransactionStatus
+from databaseManager import getMaximumPriceAfter
+from databaseManager import insertTradeHistory
+
+
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
 configSection = "configuration"
+config = ""
+binanceClient = ""
 
 # Logging function
 def getLogger():
@@ -40,7 +53,7 @@ def getLogger():
   return log
 
 # Function that sends a message to Telegram
-def sendMessage(log, message):
+def sendMessage(log, config, message):
   try:
     payload = {
         'chat_id': config["bot_chat_id"],
@@ -53,307 +66,8 @@ def sendMessage(log, message):
     tracebackError = traceback.format_exc()
     log.info(tracebackError)
 
-def createTables(log):
-  log.info("Check if table <trade_history> exits")
-  databaseCursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-  tables = databaseCursor.fetchall()
-  if ("trade_history",) in tables:
-    log.info("Table <trade_history> already exists. Continue.")
-    return
-  log.info("Table <trade_history> does not exists. Will create it now.")
-  databaseConnection.execute('''CREATE TABLE trade_history
-               (timestamp text, coin text, action text, currentPrice real, currentDollars real, cryptoQuantity real, gainOrLoss real)''')
-  databaseConnection.commit()
-  log.info("Table <trade_history> successfully created.")
-
-def getPriceHistory(log, coin, howMany):
-  # First, check the latest timestamp from database. If this is old, will return []
-  databaseCursor.execute("SELECT max(timestamp) FROM price_history")
-  dataPointsObj = databaseCursor.fetchall()
-  currentTime = time.time()
-  if currentTime - float(dataPointsObj[0][0]) > 300:
-    message = "[ERROR] Too old price history in database. Maybe scraper is down. Skipping the bot run for this time."
-    log.info(message)
-    sendMessage(log, message)
-    return []
-
-  databaseCursor.execute("SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(howMany))
-  dataPointsObj = databaseCursor.fetchall()
-  dataPointsObj.reverse()
-  dataPoints = []
-  for price in dataPointsObj:
-    dataPoints.append(price[0])
-  return dataPoints
-
-# Function that reads from DB the last transaction
-def getLastTransactionStatus(log, coin):
-  # Get current balance
-  currentDollars = getCurrencyBalance(log, "USDT")
-  cryptoQuantity = getCurrencyBalance(log, "BTC")
-
-  databaseCursor.execute("SELECT * FROM trade_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(1))
-  lastTransaction = databaseCursor.fetchall()
-  if len(lastTransaction) == 0:
-    log.info("No history on the database. Will go with the default option: no Crypto")
-    return {"timestamp": 0, "doWeHaveCrypto": False, "buyingPrice": 0, "currentDollars": 0, "cryptoQuantity": 0, "gainOrLoss": 0}
-  else:
-    if lastTransaction[0][2] == "BUY":
-      doWeHaveCrypto = True
-      return {"timestamp": lastTransaction[0][0], "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": lastTransaction[0][3], "currentDollars": currentDollars, "cryptoQuantity": cryptoQuantity, "gainOrLoss": lastTransaction[0][6]}
-    else:
-      doWeHaveCrypto = False
-      return {"timestamp": lastTransaction[0][0], "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": 0, "currentDollars": currentDollars, "cryptoQuantity": cryptoQuantity, "gainOrLoss": lastTransaction[0][6]}
-
-# If de we have crypto, we have to gate from history the maximum value of crypto after buying
-def getMaximumPriceAfter(log, lastBuyingTimestamp):
-  coin = "BTCUSDT"
-  databaseCursor.execute("SELECT max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + lastBuyingTimestamp)
-  maximumPrice = databaseCursor.fetchall()
-  return maximumPrice[0][0]
-
-def getCurrencyBalance(log, currency):
-  i = 0
-  while i <= 5:
-    i += 1
-    try:
-      if i > 1:
-        log.info("Retry number " + str(i) + " to get account balance.")
-      balances = client.get_account()[u'balances']
-      break
-    except BinanceAPIException as e:
-      message = "[ERROR API] Couldn't get balances from Binance: " + str(e)
-      log.info(message)
-      log.info(e)
-    except Exception as e:
-      message = "[ERROR] Couldn't get balances from Binance: " + str(e)
-      log.info(message)
-      log.info(e)
-    time.sleep(5)
-  if i == 11:
-    message = "[ERROR] Couldn't get balances from Binance after 10 retries"
-    log.info(message)
-    sendMessage(log, message)
-    return (-1)
-
-  for currency_balance in balances:
-      if currency_balance[u'asset'] == currency:
-          return float(currency_balance[u'free'])
-  return None
-
-def getCurrentCoinPrice(log, coin):
-  i = 0
-  while i <= 10:
-    i += 1
-    if i > 1:
-      log.info("Retry number " + str(i) + " for coin: '" + coin + "'")
-    try:
-      return float(client.get_symbol_ticker(symbol=coin)["price"])
-    except BinanceAPIException as e:
-      message = "[ERROR API] When getting current price: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-    except Exception as e:
-      message = "[ERROR] When getting current price: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-    time.sleep(1)
-  if i == 11:
-    message = "[ERROR] Couldn't get current price from Binance after 10 retries"
-    log.info(message)
-    sendMessage(log, message)
-  return None
-
-def wait_for_order(log, symbol, order_id):
-  log.info("Wait for order")
-  i = 0
-  while True:
-    i += 1
-    try:
-      order_status = client.get_order(symbol="BTCUSDT", orderId=order_id)
-      break
-    except BinanceAPIException as e:
-      message = "[ERROR API] When waiting for order: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-    except Exception as e:
-      message = "[ERROR] When waiting for order: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-
-    if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't wait for order after " + str(i) + " retries"
-      log.info(message)
-      sendMessage(log, message)
-
-  log.info(order_status)
-
-  i = 0
-  while order_status[u'status'] != 'FILLED':
-    i += 1
-    try:
-      order_status = self.BinanceClient.get_order(
-          symbol="BTCUSDT", orderId=order_id)
-    except BinanceAPIException as e:
-      message = "[ERROR API] when querying if status is FILLED: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-    except Exception as e:
-      message = "[ERROR] when querying if status is FILLED: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-
-    if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't query if status is FILLED " + str(i) + " retries"
-      log.info(message)
-      sendMessage(log, message)
-
-  return order_status
-
-def buyCrypto(log):
-  currentDollars = getCurrencyBalance(log, 'USDT')
-
-  order = None
-  i = 0
-  while order is None:
-    i += 1
-    try:
-      currentPrice = getCurrentCoinPrice(log, 'BTCUSDT')
-      quantityWanted = currentDollars / currentPrice
-      quantityWanted = quantityWanted - 0.01 * quantityWanted
-      quantityWanted = float(str(quantityWanted).split(".")[0] + "." + str(quantityWanted).split(".")[1][:6])
-      log.info("quantity = " + str(quantityWanted))
-      if config["dry_run"] == "true":
-        order = client.order_market_buy(symbol="BTCUSDT", quantity=(quantityWanted))
-      else:
-        message = "[INFO] Running in dry-run mode. No BUY Crypto order sent"
-        log.info(message)
-        sendMessage(log, message)
-    except BinanceAPIException as e:
-      message = "[ERROR API] when placing BUY crypto order: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-    except Exception as e:
-      message = "[ERROR] when placing BUY crypto order: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-
-    if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't place BUY crypto order " + str(i) + " retries"
-      log.info(message)
-      sendMessage(log, message)
-
-  if config["dry_run"] == "true":
-    log.info("BUY crypto order placed:")
-    log.info(order)
-
-    # Binance server can take some time to save the order
-    log.info("Waiting for Binance")
-
-    stat = wait_for_order(log, "BTCUSDT", order[u'orderId'])
-
-    oldDollars = currentDollars
-    newDollars = getCurrencyBalance(log, 'USDT')
-    while newDollars >= oldDollars:
-        newDollars = getCurrencyBalance(log, 'USDT')
-        time.sleep(5)
-
-  newCrypto = getCurrencyBalance(log, 'BTC')
-
-  message = "BUY crypto successful\n"
-  message += "############## BUY CRYPTO TRADE STATS #############\n"
-  message += "currentPrice = " + str(currentPrice) + "\n"
-  message += "oldDollars = " + str(oldDollars) + "\n"
-  message += "newCrypto = " + str(newCrypto) + "\n"
-  message += "####################################################"
-  log.info(message)
-  sendMessage(log, message)
-
-def sellCrypto(log):
-  currentCrypto = getCurrencyBalance(log, 'BTC')
-  log.info("currentCrypto = " + str(currentCrypto))
-  log.info("Try to launch a SELL Crypto order")
-
-  order = None
-  i = 0
-  while order is None:
-    i += 1
-    try:
-      currentPrice = getCurrentCoinPrice(log, 'BTCUSDT')
-      quantityWanted = float(str(currentCrypto).split(".")[0] + "." + str(currentCrypto).split(".")[1][:6])
-      log.info("quantity = " + str(quantityWanted))
-      if config["dry_run"] == "true":
-        order = client.order_market_sell(symbol="BTCUSDT", quantity=(quantityWanted))
-      else:
-        message = "[INFO] Running in dry-run mode. No SELL Crypto order sent"
-        log.info(message)
-        sendMessage(log, message)
-    except BinanceAPIException as e:
-      message = "[ERROR API] when placing SELL crypto order: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-    except Exception as e:
-      message = "[ERROR] when placing SELL crypto order: " + str(e)
-      log.info(message)
-      sendMessage(log, message)
-      time.sleep(1)
-
-    if i == 10 or i == 100 or i == 500:
-      message = "[ERROR] Couldn't place SELL crypto order " + str(i) + " retries"
-      log.info(message)
-      sendMessage(log, message)
-
-  if config["dry_run"] == "true":
-    log.info("SELL crypto order placed:")
-    log.info(order)
-
-    # Binance server can take some time to save the order
-    log.info("Waiting for Binance")
-
-    stat = wait_for_order(log, "BTCUSD", order[u'orderId'])
-
-    oldCrypto = currentCrypto
-    newCrypto = getCurrencyBalance(log, 'BTC')
-    while newCrypto >= oldCrypto:
-        newCrypto = getCurrencyBalance(log, 'BTC')
-        time.sleep(5)
-
-    log.info("SOLD crypto successful")
-
-  newDollars = getCurrencyBalance(log, 'USDT')
-
-  message = "SELL crypto successful\n"
-  message += "############## SELL CRYPTO TRADE STATS #############\n"
-  message += "currentPrice = " + str(currentPrice) + "\n"
-  message += "newDollars = " + str(newDollars) + "\n"
-  message += "oldCrypto = " + str(oldCrypto) + "\n"
-  message += "####################################################"
-  log.info(message)
-  sendMessage(log, message)
-
-def insertTradeHistory(log, currentTime, coin, action, currentPrice, currentDollars, cryptoQuantity):
-  # Here we have to calculate the gainOrLoss
-  # For now, enter 0
-  # TODO
-  gainOrLoss = 0
-  try:
-    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + coin + "','" + action + "'," + str(currentPrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
-    log.info(query)
-    databaseConnection.execute(query)
-    databaseConnection.commit()
-  except Exception as e:
-    message = "[ERROR] When saving scraping in the database: " + str(e)
-    log.info(message)
-    sendMessage(log, message)
-
 # Function that makes the trades
-def trade(log):
+def trade(log, sendMessage, config, databaseClient, binanceClient):
   # First we need to get the current state of liquidity
   # Extrapolate to many coins if the case
   coin = config["coins_to_scrape"].split("|")[0]
@@ -375,7 +89,7 @@ def trade(log):
   timeBetweenRuns = int(config["seconds_between_scrapes"])
 
   # Get last transaction status
-  status = getLastTransactionStatus(log, coin)
+  status = getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceClient, coin)
   lastBuyingTimestamp = status["timestamp"]
   doWeHaveCrypto = status["doWeHaveCrypto"]
   buyingPrice = status["buyingPrice"]
@@ -385,7 +99,7 @@ def trade(log):
 
   # If de we have crypto, we have to gate from history the maximum value of crypto after buying
   if doWeHaveCrypto == True:
-    maximumPrice = getMaximumPriceAfter(log, lastBuyingTimestamp)
+    maximumPrice = getMaximumPriceAfter(log, sendMessage, config, databaseClient, binanceClient, lastBuyingTimestamp)
   else:
     maximumPrice = 0
 
@@ -403,7 +117,7 @@ def trade(log):
     currentTime = int(time.time())
     log.info("[Datapoint " + str(currentTime) + "] ######################################################")
     # Get the price history from database
-    dataPoints = getPriceHistory(log, coin, aggregatedBy * lookBackIntervals)
+    dataPoints = getPriceHistory(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy * lookBackIntervals)
     if len(dataPoints) < aggregatedBy * lookBackIntervals:
       log.info("Too few data to aggregate")
       currentDatapoint += 1
@@ -412,6 +126,7 @@ def trade(log):
 
     # len(dataPoints) == (lookBackIntervals * aggregatedBy)
     i = 0
+    history = []
     while i < len(dataPoints):
       suma = 0
       j = 0
@@ -424,6 +139,7 @@ def trade(log):
     # Now the logic comes. To buy, to wait, to sell
     currentPrice = history[-1]
     log.info("currentPrice = " + str(currentPrice))
+    log.info(history)
 
     # Calculate change in the last lookBackIntervals datapoints
     #log.info("pricelookBackIntervalsDatapoints = " + str(history[-10]))
@@ -458,22 +174,25 @@ def trade(log):
         if peakIndex < (-1) * peakIndexTreshold:
           # We exceeded treshold, get out
           # SELL
+          message = "[SELL at " + str(currentPrice) + "] We exceeded treshold, get out"
+          message += "aggregatedHistory:\n"
+          for price in history:
+            message += str(price) + "\n"
           message = "peakIndex = " + str(peakIndex) + "\n"
           message += "peakIndexTreshold = " + str(peakIndexTreshold) + "\n"
-          message += "[SELL at " + str(currentPrice) + "] We exceeded treshold, get out"
           log.info(message)
-          sendMessage(log, message)
-          sellCrypto(log)
+          sendMessage(log, config, message)
+          sellCrypto(log, sendMessage, config, binanceClient)
 
           # Update variables
-          currentDollars = getCurrencyBalance(log, 'USDT')
+          currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
           actionDatapoint = currentDatapoint
           doWeHaveCrypto = False
           cryptoQuantity = 0
           buyingPrice = 0
           madeFirstTrade = True
           # Insert in trade_history
-          insertTradeHistory(log, currentTime, coin, "SELL", currentPrice, currentDollars, 0)
+          insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "SELL", currentPrice, currentDollars, 0)
           time.sleep(timeBetweenRuns)
 
           continue
@@ -490,34 +209,38 @@ def trade(log):
           time.sleep(timeBetweenRuns)
           continue
         # SELL
-        message = "currentPrice = " + str(currentPrice) + "\n"
+        message = "[SELL at " + str(currentPrice) + "] CurrentPrice < BuyingPrice"
+        message += "aggregatedHistory:\n"
+        for price in history:
+          message += str(price) + "\n"
         message += "buyingPrice = " + str(buyingPrice) + "\n"
-        message += "[SELL at " + str(currentPrice) + "] CurrentPrice < BuyingPrice"
         log.info(message)
-        sendMessage(log, message)
-        sellCrypto(log)
+        sendMessage(log, config, message)
+        sellCrypto(log, sendMessage, config, binanceClient)
 
         # Update variables
-        currentDollars = getCurrencyBalance(log, 'USDT')
+        currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
         actionDatapoint = currentDatapoint
         doWeHaveCrypto = False
         cryptoQuantity = 0
         buyingPrice = 0
         madeFirstTrade = True
         # Insert in trade_history
-        insertTradeHistory(log, currentTime, coin, "SELL", currentPrice, currentDollars, 0)
+        insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "SELL", currentPrice, currentDollars, 0)
 
         time.sleep(timeBetweenRuns)
         continue
     else:
       # We do not have crypto
       # Should we buy?
-      if averagelookBackIntervalsDatapointsIndex < 0:
+      # TODO
+      if False and averagelookBackIntervalsDatapointsIndex < 0:
         log.info("Market going down. Keep waiting.")
         time.sleep(timeBetweenRuns)
         continue
       else:
-        if averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTreshold:
+        # TODO
+        if False and averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTreshold:
           log.info("Too little increase. Not buying. Keep waiting.")
           time.sleep(timeBetweenRuns)
           continue
@@ -528,15 +251,18 @@ def trade(log):
             time.sleep(timeBetweenRuns)
             continue
           # BUY
-          message = "averagelookBackIntervalsDatapointsIndex = " + str(averagelookBackIntervalsDatapointsIndex) + "\n"
-          message += "lastlookBackIntervalsIndexTreshold = " + str(lastlookBackIntervalsIndexTreshold) + "\n"
-          message += "[BUY at " + str(currentPrice) + "]"
+          message = "[BUY at " + str(currentPrice) + "]\n"
+          message += "aggregatedHistory:\n"
+          for price in history:
+            message += str(price) + "\n"
+          message += "averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)) + "\n"
+          message += "lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)) + "\n"
           log.info(message)
-          sendMessage(log, message)
-          buyCrypto(log)
+          sendMessage(log, config, message)
+          buyCrypto(log, sendMessage, config, binanceClient)
 
           # Update variables
-          cryptoQuantity = getCurrencyBalance(log, 'BTC')
+          cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
           doWeHaveCrypto = True
           buyingPrice = currentPrice
           actionDatapoint = currentDatapoint
@@ -544,8 +270,10 @@ def trade(log):
           currentDollars = 0
           madeFirstTrade = True
           # Insert in trade_history
-          insertTradeHistory(log, currentTime, coin, "BUY", currentPrice, 0, cryptoQuantity)
+          insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "BUY", currentPrice, 0, cryptoQuantity)
           time.sleep(timeBetweenRuns)
+          #TODO
+          sys.exit(0)
           continue
 
     time.sleep(timeBetweenRuns)
@@ -560,72 +288,67 @@ def mainFunction():
     if os.path.isfile(configFile) is False:
       message = "[FATAL] Config file does not exist. Exiting"
       log.info(message)
-      sendMessage(log, message)
+      sendMessage(log, config, message)
       sys.exit(1)
 
     # Read config file
     configObj = configparser.ConfigParser()
     configObj.read(configFile)
-    global config
     config = configObj._sections[configSection]
 
-    sendMessage(log, "[INFO] Bot restarted")
+    sendMessage(log, config, "[INFO] Bot restarted")
 
     # Create the database if it not exists
     if os.path.isfile(config["database_file"]) is False:
       message = "[FATAL] Database not found. Exiting."
       log.info(message)
-      sendMessage(log, message)
+      sendMessage(log, config, message)
       sys.exit(2)
 
     # Connect to database
     try:
-      global databaseConnection
-      global databaseCursor
-      databaseConnection = sqlite3.connect(config["database_file"])
-      databaseCursor = databaseConnection.cursor()
+      databaseClient = sqlite3.connect(config["database_file"])
     except Exception as e:
       message = "[FATAL] Couldn't connect to the database. Investigate manually"
       log.info(message)
       log.info(e)
-      sendMessage(log, message)
+      sendMessage(log, config, message)
       sys.exit(2)
 
     # Create table if it not exists
-    createTables(log)
+    createTables(log, sendMessage, config, databaseClient)
 
     # Get Binance client
-    global client
-    client = Client(config["api_key"], config["api_secret_key"])
+    binanceClient = Client(config["api_key"], config["api_secret_key"])
 
     # The function should never end, that scrape, and write in the database
-    trade(log)
+    trade(log, sendMessage, config, databaseClient, binanceClient)
 
     # Commit and close
     try:
-      databaseConnection.commit()
-      databaseConnection.close()
+      databaseClient.commit()
+      databaseClient.close()
       message = "[FATAL] Unexpected end of script. Database successfully commited and closed"
       log.info(message)
-      sendMessage(log, message)
+      sendMessage(log, config, message)
     except Exception as e:
       message = "[FATAL] Unexpected end of script. Database successfully commited and closed"
       log.info(message)
       log.info("Fatal Error: {}".format(e))
       tracebackError = traceback.format_exc()
       log.info(tracebackError)
-      sendMessage(log, message)
+      sendMessage(log, config, message)
 
 
   ##### END #####
   except KeyboardInterrupt:
     try:
-      databaseConnection.commit()
-      databaseConnection.close()
+      databaseClient.commit()
+      databaseClient.close()
     except:
       message = "[FATAL] Could not commit and close DB connection"
       log.info(message)
-      sendMessage(log, message)
+      sendMessage(log, config, message)
     log.info("DB commited and closed. Gracefully quiting")
     sys.exit(0)
   except Exception as e:
@@ -633,13 +356,13 @@ def mainFunction():
     tracebackError = traceback.format_exc()
     log.info(tracebackError)
     try:
-      databaseConnection.commit()
-      databaseConnection.close()
+      databaseClient.commit()
+      databaseClient.close()
     except:
       message = "[FATAL] Could not commit and close DB connection."
       log.info(message)
-      sendMessage(log, message)
-    sendMessage(log, str(e) + "\n\n\n\n" + str(tracebackError))
+      sendMessage(log, config, message)
+    sendMessage(log, config, str(e) + "\n\n\n\n" + str(tracebackError))
     sys.exit(99)
 
 

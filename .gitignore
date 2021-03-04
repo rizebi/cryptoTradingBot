@@ -1,6 +1,5 @@
 ./idea/
 configuration.cfg
-database.db
-commands
+Drafts/database.db
+Drafts/commands
 /logs/
-bot-joaca.py
