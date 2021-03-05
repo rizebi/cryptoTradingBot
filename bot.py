@@ -153,6 +153,8 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       # Calculate peakIndex
       peakDiffPrice = currentAggregatedPrice - maximumPrice
       peakIndex = peakDiffPrice / maximumPrice
+      log.info("peakDiffPrice = " + str(peakDiffPrice))
+      log.info("peakIndex = " + str(peakIndex))
 
       if peakIndex >= 0:
         aquisitionDiffPrice = currentRealPrice - buyingPrice
@@ -238,6 +240,8 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       averagelookBackIntervalsDataPoints = sum(aggregatedHistory[(-1) * lookBackIntervals:])/lookBackIntervals
       averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
       averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
+      log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
+      log.info("averagelookBackIntervalsDatapointsIndex = " + str(averagelookBackIntervalsDatapointsIndex))
       if averagelookBackIntervalsDatapointsIndex < 0:
         log.info("Market going down. Keep waiting.")
         time.sleep(timeBetweenRuns)
