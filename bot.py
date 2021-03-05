@@ -154,7 +154,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       peakDiffPrice = currentAggregatedPrice - maximumPrice
       peakIndex = peakDiffPrice / maximumPrice
       log.info("peakDiffPrice = " + str(peakDiffPrice))
-      log.info("peakIndex = " + str(peakIndex))
+      log.info("peakIndex = " + str('{:.10f}'.format(peakIndex)))
 
       if peakIndex >= 0:
         aquisitionDiffPrice = currentRealPrice - buyingPrice
@@ -168,7 +168,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellPeak):
             log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
             waitMinutes = int(((60 * int(cooldownMinutesSellPeak)) - (currentTime - lastTradeTimestamp)) / 60)
-            log.info("Wait at least " + str(waitMinutes) + " more minutes."
+            log.info("Wait at least " + str(waitMinutes) + " more minutes.")
             time.sleep(timeBetweenRuns)
             continue
           # We exceeded treshold, get out
@@ -209,7 +209,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
         if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
           log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < buyingPrice")
           waitMinutes = int(((60 * int(cooldownMinutesSellBuyPrice)) - (currentTime - lastTradeTimestamp)) / 60)
-          log.info("Wait at least " + str(waitMinutes) + " more minutes."
+          log.info("Wait at least " + str(waitMinutes) + " more minutes.")
           time.sleep(timeBetweenRuns)
           continue
         # SELL
@@ -259,7 +259,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
             log.info("WAIT FOR COOLDOWN. No buying.")
             waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-            log.info("Wait at least " + str(waitMinutes) + " more minutes."
+            log.info("Wait at least " + str(waitMinutes) + " more minutes.")
             time.sleep(timeBetweenRuns)
             continue
           # BUY

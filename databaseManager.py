@@ -1,4 +1,5 @@
 import time
+import datetime
 from binanceManager import getCurrencyBalance
 
 def createTables(log, sendMessage, config, databaseClient):
