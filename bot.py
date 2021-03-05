@@ -67,6 +67,26 @@ def sendMessage(log, config, message):
     tracebackError = traceback.format_exc()
     log.info(tracebackError)
 
+def constructHistory(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns):
+  # Get the price history from database
+  realHistory = getPriceHistory(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy * lookBackIntervals)
+  if len(realHistory) < aggregatedBy * lookBackIntervals:
+    return [], []
+
+  # len(realHistory) == (lookBackIntervals * aggregatedBy)
+  i = 0
+  aggregatedHistory = []
+  while i < len(realHistory):
+    suma = 0
+    j = 0
+    while j < aggregatedBy:
+      suma += realHistory[i]
+      i += 1
+      j += 1
+    aggregatedHistory.append(suma/aggregatedBy)
+
+  return realHistory, aggregatedHistory
+
 # Function that makes the trades
 def trade(log, sendMessage, config, databaseClient, binanceClient):
   # First we need to get the current state of liquidity
@@ -78,9 +98,10 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
   # This does not respect cooldown! (if treshold is exceeded, will sell even on next datapoint)
   peakIndexTreshold = float(config["peak_index_treshold"])
   # Buy if difference between current price and lookBackIntervals datapoints ago is bigger than lastlookBackIntervalsIndexTreshold
-  # Currently this seems not to matter
   lastlookBackIntervalsIndexTreshold = float(config["buy_lookback_intervals_index_treshold"])
-  cooldownDatapoints = int(config["cooldown_datapoints"])
+  cooldownMinutesBuy = int(config["cooldown_minutes_buy"])
+  cooldownMinutesSellPeak = int(config["cooldown_minutes_sell_peak"])
+  cooldownMinutesSellBuyPrice = int(config["cooldown_minutes_sell_buy_price"])
   # Mow many datapoints to aggregate (average)
   aggregatedBy = int(config["aggregated_by"])
   # The bot will buy if  the current price is above average for lookBackIntervals
@@ -89,83 +110,53 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
   # Time between runs
   timeBetweenRuns = int(config["seconds_between_scrapes"])
 
-  # Get last transaction status
-  status = getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceClient, coin)
-  lastBuyingTimestamp = status["timestamp"]
-  doWeHaveCrypto = status["doWeHaveCrypto"]
-  buyingPrice = status["buyingPrice"]
-  currentDollars = status["currentDollars"]
-  cryptoQuantity = status["cryptoQuantity"]
-  gainOrLoss = status["gainOrLoss"]
-
-  # If de we have crypto, we have to gate from history the maximum value of crypto after buying
-  if doWeHaveCrypto == True:
-    maximumPrice = getMaximumPriceAfter(log, sendMessage, config, databaseClient, binanceClient, lastBuyingTimestamp)
-  else:
-    maximumPrice = 0
-
-  # Initialisations
-  currentDatapoint = 0
-  actionDatapoint = 0
-  # This helps to not wait for a cooldown when starting the script, but also no make more than one Trade in the first cycle
-  madeFirstTrade = False
-
   while True:
     # Update logger handler
     log = getLogger()
-
     currentTime = int(time.time())
     log.info("[Datapoint " + str(currentTime) + "] ######################################################")
-    # Get the price history from database
-    dataPoints = getPriceHistory(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy * lookBackIntervals)
-    if len(dataPoints) < aggregatedBy * lookBackIntervals:
+
+    # Get last transaction status
+    status = getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceClient, coin)
+    lastTradeTimestamp = int(status["timestamp"])
+    doWeHaveCrypto = status["doWeHaveCrypto"]
+    buyingPrice = status["buyingPrice"]
+    currentDollars = status["currentDollars"]
+    cryptoQuantity = status["cryptoQuantity"]
+    gainOrLoss = status["gainOrLoss"]
+
+    # If de we have crypto, we have to gate from history the maximum value of crypto after buying
+    if doWeHaveCrypto == True:
+      maximumPrice = getMaximumPriceAfter(log, sendMessage, config, databaseClient, binanceClient, lastTradeTimestamp)
+    else:
+      maximumPrice = 0
+
+    # Get price history
+    realHistory, aggregatedHistory = constructHistory(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns)
+    if len(realHistory) == 0:
       log.info("Too few data to aggregate")
-      currentDatapoint += 1
       time.sleep(timeBetweenRuns)
       continue
 
-    # len(dataPoints) == (lookBackIntervals * aggregatedBy)
-    i = 0
-    history = []
-    while i < len(dataPoints):
-      suma = 0
-      j = 0
-      while j < aggregatedBy:
-        suma += dataPoints[i]
-        i += 1
-        j += 1
-      history.append(suma/aggregatedBy)
-    currentDatapoint += 1
     # Now the logic comes. To buy, to wait, to sell
-    currentPrice = dataPoints[-1]
-    currentAggregatedPrice = history[-1]
+    currentRealPrice = realHistory[-1]
+    currentAggregatedPrice = aggregatedHistory[-1]
+    log.info("currentRealPrice = " + str(currentRealPrice))
     log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
-    log.info(history)
-
-    # Calculate change in the last lookBackIntervals datapoints
-    #log.info("pricelookBackIntervalsDatapoints = " + str(history[-10]))
-    #averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - history[(-1) * lookBackIntervals]
-    averagelookBackIntervalsDataPoints = sum(history[(-1) * lookBackIntervals:])/lookBackIntervals
-    averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
-    #log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
-    averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
-    #log.info("averagelookBackIntervalsDatapointsIndex = " + str(averagelookBackIntervalsDatapointsIndex))
-
     # Print stats
     log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
     if doWeHaveCrypto == True:
       log.info("buyingPrice = " + str(buyingPrice))
       log.info("maximumPrice = " + str(maximumPrice))
+    log.info("aggregatedHistory = " + str(aggregatedHistory))
 
     if doWeHaveCrypto == True:
-      if currentAggregatedPrice > maximumPrice:
-        maximumPrice = currentAggregatedPrice
       # Calculate peakIndex
       peakDiffPrice = currentAggregatedPrice - maximumPrice
-      aquisitionDiffPrice = currentAggregatedPrice - buyingPrice
       peakIndex = peakDiffPrice / maximumPrice
 
       if peakIndex >= 0:
+        aquisitionDiffPrice = currentRealPrice - buyingPrice
         gain = aquisitionDiffPrice * cryptoQuantity
         log.info("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade: " + str(gain) + "$.")
         time.sleep(timeBetweenRuns)
@@ -173,12 +164,21 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       else:
         # peakIndex < 0
         if peakIndex < (-1) * peakIndexTreshold:
+          if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
+            log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
+            time.sleep(timeBetweenRuns)
+            continue
           # We exceeded treshold, get out
           # SELL
-          message = "[SELL at aggregated " + str(currentAggregatedPrice) + "] We exceeded treshold, get out"
+          message = "[SELL] We exceeded treshold, get out"
           message += "aggregatedHistory:\n"
-          for price in history:
+          for price in aggregatedHistory:
             message += str(price) + "\n"
+          message += "##########"
+          message += "currentRealPrice = " + str(currentRealPrice) + "\n"
+          message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
+          message += "maximumPrice = " + str(maximumPrice) + "\n"
+          message += "peakDiffPrice = " + str(peakDiffPrice) + "\n"
           message += "peakIndex = " + str(peakIndex) + "\n"
           message += "peakIndexTreshold = " + str(peakIndexTreshold) + "\n"
           log.info(message)
@@ -188,7 +188,6 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           # Update variables
           currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
           cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
-          actionDatapoint = currentDatapoint
           doWeHaveCrypto = False
           buyingPrice = 0
           madeFirstTrade = True
@@ -205,15 +204,18 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
 
       if currentAggregatedPrice < buyingPrice:
         # No need to wait for cooldown if script was just restarted
-        if ((madeFirstTrade == True) and (currentDatapoint <= cooldownDatapoints * aggregatedBy)) or ((currentDatapoint >= cooldownDatapoints * aggregatedBy) and (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy)):
-          log.info("WAIT FOR COOLDOWN. No selling.")
+        if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
+          log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < buyingPrice")
           time.sleep(timeBetweenRuns)
           continue
         # SELL
-        message = "[SELL at aggregated " + str(currentAggregatedPrice) + "] currentAggregatedPrice < BuyingPrice"
+        message = "[SELL] currentAggregatedPrice < buyingPrice"
         message += "aggregatedHistory:\n"
-        for price in history:
+        for price in aggregatedHistory:
           message += str(price) + "\n"
+        message += "##########"
+        message += "currentRealPrice = " + str(currentRealPrice) + "\n"
+        message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
         message += "buyingPrice = " + str(buyingPrice) + "\n"
         log.info(message)
         sendMessage(log, config, message)
@@ -222,7 +224,6 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
         # Update variables
         currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
         cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
-        actionDatapoint = currentDatapoint
         doWeHaveCrypto = False
         buyingPrice = 0
         madeFirstTrade = True
@@ -234,6 +235,12 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
     else:
       # We do not have crypto
       # Should we buy?
+
+      # Calculate change in the last lookBackIntervals datapoints
+      averagelookBackIntervalsDataPoints = sum(aggregatedHistory[(-1) * lookBackIntervals:])/lookBackIntervals
+      averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
+      averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
+
       if averagelookBackIntervalsDatapointsIndex < 0:
         log.info("Market going down. Keep waiting.")
         time.sleep(timeBetweenRuns)
@@ -245,15 +252,18 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           continue
         else:
           # No need to wait for cooldown if script was just restarted
-          if ((madeFirstTrade == True) and (currentDatapoint <= cooldownDatapoints * aggregatedBy)) or ((currentDatapoint >= cooldownDatapoints * aggregatedBy) and (currentDatapoint - actionDatapoint < cooldownDatapoints * aggregatedBy)):
+          if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
             log.info("WAIT FOR COOLDOWN. No buying.")
             time.sleep(timeBetweenRuns)
             continue
           # BUY
-          message = "[BUY at aggregated " + str(currentAggregatedPrice) + "]\n"
+          message = "[BUY]\n"
           message += "aggregatedHistory:\n"
-          for price in history:
+          for price in aggregatedHistory:
             message += str(price) + "\n"
+          message += "##########"
+          message += "currentRealPrice = " + str(currentRealPrice) + "\n"
+          message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
           message += "averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)) + "\n"
           message += "lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)) + "\n"
           log.info(message)
@@ -265,7 +275,6 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
           doWeHaveCrypto = True
           buyingPrice = tradePrice
-          actionDatapoint = currentDatapoint
           maximumPrice = tradePrice
           madeFirstTrade = True
           # Insert in trade_history

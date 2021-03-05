@@ -50,16 +50,15 @@ def getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceCl
   else:
     if lastTransaction[0][2] == "BUY":
       doWeHaveCrypto = True
-      return {"timestamp": lastTransaction[0][0], "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": lastTransaction[0][3], "currentDollars": currentDollars, "cryptoQuantity": cryptoQuantity, "gainOrLoss": lastTransaction[0][6]}
     else:
       doWeHaveCrypto = False
-      return {"timestamp": lastTransaction[0][0], "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": 0, "currentDollars": currentDollars, "cryptoQuantity": cryptoQuantity, "gainOrLoss": lastTransaction[0][6]}
+    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": float(lastTransaction[0][3]), "currentDollars": float(currentDollars), "cryptoQuantity": float(cryptoQuantity), "gainOrLoss": float(lastTransaction[0][6])}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
 def getMaximumPriceAfter(log, sendMessage, config, databaseClient, binanceClient, lastBuyingTimestamp):
   coin = "BTCUSDT"
   databaseCursor = databaseClient.cursor()
-  databaseCursor.execute("SELECT max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + lastBuyingTimestamp)
+  databaseCursor.execute("SELECT max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(lastBuyingTimestamp))
   maximumPrice = databaseCursor.fetchall()
   return maximumPrice[0][0]
 

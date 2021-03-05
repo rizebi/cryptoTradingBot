@@ -33,10 +33,11 @@ def getCurrencyBalance(log, sendMessage, config, binanceClient, currency):
     sendMessage(log, config, message)
     returnValue = -14
 
-  for currency_balance in balances:
-      if currency_balance[u'asset'] == currency:
-          returnValue = float(currency_balance[u'free'])
-  log.info("Got: " + str(returnValue) + " " + currency)
+  if config["dry_run"] == "false":
+    for currency_balance in balances:
+        if currency_balance[u'asset'] == currency:
+            returnValue = float(currency_balance[u'free'])
+  log.info("Got: " + str('{:.10f}'.format(returnValue))  + " " + currency)
   return returnValue
 
 def getCurrentCoinPrice(log, sendMessage, config, binanceClient, coin):
