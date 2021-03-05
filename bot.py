@@ -165,14 +165,14 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       aquisitionDiffPrice = currentAggregatedPrice - buyingPrice
       peakIndex = peakDiffPrice / maximumPrice
 
-      if False and peakIndex >= 0:
+      if peakIndex >= 0:
         gain = aquisitionDiffPrice * cryptoQuantity
         log.info("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade: " + str(gain) + "$.")
         time.sleep(timeBetweenRuns)
         continue
       else:
         # peakIndex < 0
-        if True or peakIndex < (-1) * peakIndexTreshold:
+        if peakIndex < (-1) * peakIndexTreshold:
           # We exceeded treshold, get out
           # SELL
           message = "[SELL at aggregated " + str(currentAggregatedPrice) + "] We exceeded treshold, get out"
