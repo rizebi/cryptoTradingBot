@@ -191,7 +191,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           buyingPrice = 0
           madeFirstTrade = True
           # Insert in trade_history
-          insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "SELL", tradePrice, currentDollars, 0)
+          insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "SELL", tradePrice, currentDollars, cryptoQuantity)
           time.sleep(timeBetweenRuns)
 
           continue
@@ -226,7 +226,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
         buyingPrice = 0
         madeFirstTrade = True
         # Insert in trade_history
-        insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "SELL", tradePrice, currentDollars, 0)
+        insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "SELL", tradePrice, currentDollars, cryptoQuantity)
 
         time.sleep(timeBetweenRuns)
         continue
@@ -274,7 +274,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           maximumPrice = tradePrice
           madeFirstTrade = True
           # Insert in trade_history
-          insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "BUY", tradePrice, 0, cryptoQuantity)
+          insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "BUY", tradePrice, currentDollars, cryptoQuantity)
           time.sleep(timeBetweenRuns)
           continue
 

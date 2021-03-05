@@ -11,7 +11,7 @@ def createTables(log, sendMessage, config, databaseClient):
     return
   log.info("Table <trade_history> does not exists. Will create it now.")
   databaseClient.execute('''CREATE TABLE trade_history
-               (timestamp text, coin text, action text, tradePrice real, currentDollars real, cryptoQuantity real, gainOrLoss real)''')
+               (timestamp text, date text, coin text, action text, tradePrice real, currentDollars real, cryptoQuantity real, gainOrLoss real)''')
   databaseClient.commit()
   log.info("Table <trade_history> successfully created.")
 
@@ -48,11 +48,11 @@ def getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceCl
     log.info("No history on the database. Will go with the default option: no Crypto")
     return {"timestamp": 0, "doWeHaveCrypto": False, "buyingPrice": 0, "currentDollars": 0, "cryptoQuantity": 0, "gainOrLoss": 0}
   else:
-    if lastTransaction[0][2] == "BUY":
+    if lastTransaction[0][3] == "BUY":
       doWeHaveCrypto = True
     else:
       doWeHaveCrypto = False
-    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": float(lastTransaction[0][3]), "currentDollars": float(currentDollars), "cryptoQuantity": float(cryptoQuantity), "gainOrLoss": float(lastTransaction[0][6])}
+    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": float(lastTransaction[0][4]), "currentDollars": float(currentDollars), "cryptoQuantity": float(cryptoQuantity), "gainOrLoss": float(lastTransaction[0][7])}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
 def getMaximumPriceAfter(log, sendMessage, config, databaseClient, binanceClient, lastBuyingTimestamp):
@@ -68,7 +68,8 @@ def insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, 
   # TODO
   gainOrLoss = 0
   try:
-    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + coin + "','" + action + "'," + str(tradePrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
+    prettyDate = datetime.datetime.fromtimestamp(currentTime).strftime("%Y-%m-%d_%H-%M-%S")
+    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + prettyDate + "','" + coin + "','" + action + "'," + str(tradePrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
     log.info(query)
     databaseClient.execute(query)
     databaseClient.commit()
