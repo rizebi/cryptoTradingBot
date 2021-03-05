@@ -95,7 +95,6 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
 
   # Get parameters from config
   # Sell if difference between maximum price for current trade - current price > peakIndexTreshold
-  # This does not respect cooldown! (if treshold is exceeded, will sell even on next datapoint)
   peakIndexTreshold = float(config["peak_index_treshold"])
   # Buy if difference between current price and lookBackIntervals datapoints ago is bigger than lastlookBackIntervalsIndexTreshold
   lastlookBackIntervalsIndexTreshold = float(config["buy_lookback_intervals_index_treshold"])
@@ -174,7 +173,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           message += "aggregatedHistory:\n"
           for price in aggregatedHistory:
             message += str(price) + "\n"
-          message += "##########"
+          message += "##########\n"
           message += "currentRealPrice = " + str(currentRealPrice) + "\n"
           message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
           message += "maximumPrice = " + str(maximumPrice) + "\n"
@@ -203,7 +202,6 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           continue
 
       if currentAggregatedPrice < buyingPrice:
-        # No need to wait for cooldown if script was just restarted
         if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
           log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < buyingPrice")
           time.sleep(timeBetweenRuns)
@@ -213,7 +211,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
         message += "aggregatedHistory:\n"
         for price in aggregatedHistory:
           message += str(price) + "\n"
-        message += "##########"
+        message += "##########\n"
         message += "currentRealPrice = " + str(currentRealPrice) + "\n"
         message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
         message += "buyingPrice = " + str(buyingPrice) + "\n"
@@ -240,7 +238,6 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       averagelookBackIntervalsDataPoints = sum(aggregatedHistory[(-1) * lookBackIntervals:])/lookBackIntervals
       averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
       averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
-
       if averagelookBackIntervalsDatapointsIndex < 0:
         log.info("Market going down. Keep waiting.")
         time.sleep(timeBetweenRuns)
@@ -251,7 +248,6 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           time.sleep(timeBetweenRuns)
           continue
         else:
-          # No need to wait for cooldown if script was just restarted
           if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
             log.info("WAIT FOR COOLDOWN. No buying.")
             time.sleep(timeBetweenRuns)
@@ -261,7 +257,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           message += "aggregatedHistory:\n"
           for price in aggregatedHistory:
             message += str(price) + "\n"
-          message += "##########"
+          message += "##########\n"
           message += "currentRealPrice = " + str(currentRealPrice) + "\n"
           message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
           message += "averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)) + "\n"

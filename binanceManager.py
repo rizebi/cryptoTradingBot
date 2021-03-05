@@ -181,16 +181,14 @@ def buyCrypto(log, sendMessage, config, binanceClient):
   else:
     tradePrice = -10
 
-
   oldDollars = currentDollars
   newCrypto = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
 
-  message = "BUY crypto successful\n"
-  message += "############## BUY CRYPTO TRADE STATS #############\n"
+  message = "[BUY Crypto successful]\n"
+  message += "Summary\n"
   message += "tradePrice = " + str(tradePrice) + "\n"
   message += "oldDollars = " + str(oldDollars) + "\n"
   message += "newCrypto = " + str(newCrypto) + "\n"
-  message += "####################################################"
   log.info(message)
   sendMessage(log, config, message)
   return tradePrice
@@ -257,12 +255,11 @@ def sellCrypto(log, sendMessage, config, binanceClient):
   oldCrypto = currentCrypto
   newDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
 
-  message = "SELL crypto successful\n"
-  message += "############## SELL CRYPTO TRADE STATS #############\n"
+  message = "[SELL Crypto successful]\n"
+  message += "Summary\n"
   message += "tradePrice = " + str(tradePrice) + "\n"
   message += "newDollars = " + str(newDollars) + "\n"
   message += "oldCrypto = " + str(oldCrypto) + "\n"
-  message += "####################################################"
   log.info(message)
   sendMessage(log, config, message)
   return tradePrice
