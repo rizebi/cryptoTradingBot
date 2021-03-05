@@ -11,7 +11,7 @@ def createTables(log, sendMessage, config, databaseClient):
     return
   log.info("Table <trade_history> does not exists. Will create it now.")
   databaseClient.execute('''CREATE TABLE trade_history
-               (timestamp text, coin text, action text, currentPrice real, currentDollars real, cryptoQuantity real, gainOrLoss real)''')
+               (timestamp text, coin text, action text, tradePrice real, currentDollars real, cryptoQuantity real, gainOrLoss real)''')
   databaseClient.commit()
   log.info("Table <trade_history> successfully created.")
 
@@ -63,13 +63,13 @@ def getMaximumPriceAfter(log, sendMessage, config, databaseClient, binanceClient
   maximumPrice = databaseCursor.fetchall()
   return maximumPrice[0][0]
 
-def insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, action, currentPrice, currentDollars, cryptoQuantity):
+def insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, action, tradePrice, currentDollars, cryptoQuantity):
   # Here we have to calculate the gainOrLoss
   # For now, enter 0
   # TODO
   gainOrLoss = 0
   try:
-    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + coin + "','" + action + "'," + str(currentPrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
+    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + coin + "','" + action + "'," + str(tradePrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
     log.info(query)
     databaseClient.execute(query)
     databaseClient.commit()

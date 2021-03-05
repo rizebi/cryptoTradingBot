@@ -3,13 +3,20 @@ from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
 def getCurrencyBalance(log, sendMessage, config, binanceClient, currency):
+  log.info("Get balancer for: " + currency)
   i = 0
   while i <= 5:
     i += 1
     try:
       if i > 1:
         log.info("Retry number " + str(i) + " to get account balance.")
-      balances = binanceClient.get_account()[u'balances']
+      if config["dry_run"] == "false":
+        balances = binanceClient.get_account()[u'balances']
+      else:
+        if currency == "USDT":
+          returnValue = -12
+        else:
+          returnValue = -13
       break
     except BinanceAPIException as e:
       message = "[ERROR API] Couldn't get balances from Binance: " + str(e)
@@ -24,12 +31,13 @@ def getCurrencyBalance(log, sendMessage, config, binanceClient, currency):
     message = "[ERROR] Couldn't get balances from Binance after 10 retries"
     log.info(message)
     sendMessage(log, config, message)
-    return (-1)
+    returnValue = -14
 
   for currency_balance in balances:
       if currency_balance[u'asset'] == currency:
-          return float(currency_balance[u'free'])
-  return None
+          returnValue = float(currency_balance[u'free'])
+  log.info("Got: " + str(returnValue) + " " + currency)
+  return returnValue
 
 def getCurrentCoinPrice(log, sendMessage, config, binanceClient, coin):
   i = 0
@@ -38,7 +46,10 @@ def getCurrentCoinPrice(log, sendMessage, config, binanceClient, coin):
     if i > 1:
       log.info("Retry number " + str(i) + " for coin: '" + coin + "'")
     try:
-      return float(binanceClient.get_symbol_ticker(symbol=coin)["price"])
+      if config["dry_run"] == "false":
+        return float(binanceClient.get_symbol_ticker(symbol=coin)["price"])
+      else:
+        return -15
     except BinanceAPIException as e:
       message = "[ERROR API] When getting current price: " + str(e)
       log.info(message)
@@ -53,6 +64,15 @@ def getCurrentCoinPrice(log, sendMessage, config, binanceClient, coin):
     log.info(message)
     sendMessage(log, config, message)
   return None
+
+def getTradePrice(log, sendMessage, config, binanceClient, order_status):
+  try:
+    return float(order_status["cummulativeQuoteQty"]) / float(order_status["executedQty"])
+  except:
+    message = "[ERROR] Different order_status othat expected: " + str(order_status)
+    log.info(message)
+    sendMessage(log, config, message)
+    return -1
 
 def wait_for_order(log, sendMessage, config, binanceClient, symbol, order_id):
   log.info("Wait for order")
@@ -115,7 +135,9 @@ def buyCrypto(log, sendMessage, config, binanceClient):
       currentPrice = getCurrentCoinPrice(log, sendMessage, config, binanceClient, 'BTCUSDT')
       quantityWanted = currentDollars / currentPrice
       quantityWanted = quantityWanted - 0.01 * quantityWanted
-      quantityWanted = float(str(quantityWanted).split(".")[0] + "." + str(quantityWanted).split(".")[1][:6])
+      if "." in str(quantityWanted):
+        # Remove too many decimals
+        quantityWanted = float(str(quantityWanted).split(".")[0] + "." + str(quantityWanted).split(".")[1][:6])
       log.info("quantity = " + str(quantityWanted))
       if config["dry_run"] == "false":
         order = binanceClient.order_market_buy(symbol="BTCUSDT", quantity=(quantityWanted))
@@ -146,26 +168,31 @@ def buyCrypto(log, sendMessage, config, binanceClient):
 
     # Binance server can take some time to save the order
     log.info("Waiting for Binance")
-
-    stat = wait_for_order(log, sendMessage, config, binanceClient, "BTCUSDT", order[u'orderId'])
+    time.sleep(3)
+    order_status = wait_for_order(log, sendMessage, config, binanceClient, "BTCUSDT", order[u'orderId'])
 
     oldDollars = currentDollars
     newDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
     while newDollars >= oldDollars:
         newDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
         time.sleep(5)
+    tradePrice = getTradePrice(log, sendMessage, config, binanceClient, order_status)
+  else:
+    tradePrice = -10
+
 
   oldDollars = currentDollars
   newCrypto = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
 
   message = "BUY crypto successful\n"
   message += "############## BUY CRYPTO TRADE STATS #############\n"
-  message += "currentPrice = " + str(currentPrice) + "\n"
+  message += "tradePrice = " + str(tradePrice) + "\n"
   message += "oldDollars = " + str(oldDollars) + "\n"
   message += "newCrypto = " + str(newCrypto) + "\n"
   message += "####################################################"
   log.info(message)
   sendMessage(log, config, message)
+  return tradePrice
 
 def sellCrypto(log, sendMessage, config, binanceClient):
   currentCrypto = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
@@ -178,7 +205,11 @@ def sellCrypto(log, sendMessage, config, binanceClient):
     i += 1
     try:
       currentPrice = getCurrentCoinPrice(log, sendMessage, config, binanceClient, 'BTCUSDT')
-      quantityWanted = float(str(currentCrypto).split(".")[0] + "." + str(currentCrypto).split(".")[1][:6])
+      if "." in str(currentCrypto):
+        # Remove too many decimals
+        quantityWanted = float(str(currentCrypto).split(".")[0] + "." + str(currentCrypto).split(".")[1][:6])
+      else:
+        quantityWanted = currentCrypto
       log.info("quantity = " + str(quantityWanted))
       if config["dry_run"] == "false":
         order = binanceClient.order_market_sell(symbol="BTCUSDT", quantity=(quantityWanted))
@@ -209,8 +240,8 @@ def sellCrypto(log, sendMessage, config, binanceClient):
 
     # Binance server can take some time to save the order
     log.info("Waiting for Binance")
-
-    stat = wait_for_order(log, sendMessage, config, binanceClient, "BTCUSD", order[u'orderId'])
+    time.sleep(3)
+    order_status = wait_for_order(log, sendMessage, config, binanceClient, "BTCUSD", order[u'orderId'])
 
     oldCrypto = currentCrypto
     newCrypto = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
@@ -218,16 +249,19 @@ def sellCrypto(log, sendMessage, config, binanceClient):
         newCrypto = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
         time.sleep(5)
 
-    log.info("SOLD crypto successful")
+    tradePrice = getTradePrice(log, sendMessage, config, binanceClient, order_status)
+  else:
+    tradePrice = -11
 
   oldCrypto = currentCrypto
   newDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
 
   message = "SELL crypto successful\n"
   message += "############## SELL CRYPTO TRADE STATS #############\n"
-  message += "currentPrice = " + str(currentPrice) + "\n"
+  message += "tradePrice = " + str(tradePrice) + "\n"
   message += "newDollars = " + str(newDollars) + "\n"
   message += "oldCrypto = " + str(oldCrypto) + "\n"
   message += "####################################################"
   log.info(message)
   sendMessage(log, config, message)
+  return tradePrice

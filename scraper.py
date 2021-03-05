@@ -64,7 +64,7 @@ def createTable(log):
 
   log.info("Table <price_history> does not exists. Will create it now.")
   databaseConnection.execute('''CREATE TABLE price_history
-               (timestamp text, coin text, price real)''')
+               (timestamp text, date text, coin text, price real)''')
   databaseConnection.commit()
   log.info("Table <price_history> successfully created.")
 
@@ -75,14 +75,14 @@ def getCoinPrice(log, client, coin):
     if i > 1:
       log.info("Retry number " + str(i) + " for coin: '" + coin + "'")
     try:
-      # Maybe try current price: get_symbol_ticker
+      # Maybe try current price: get_symbol_ticker --- too spiking
       return client.get_avg_price(symbol=coin)["price"]
     except BinanceAPIException as e:
-      message = "[ERROR API] When getting average price: " + str(e)
+      message = "[ERROR API] When getting avg(5m) price: " + str(e)
       log.info(message)
       sendMessage(log, message)
     except Exception as e:
-      message = "[ERROR] When getting average price: " + str(e)
+      message = "[ERROR] When getting avg(5m) price: " + str(e)
       log.info(message)
       sendMessage(log, message)
     time.sleep(5)
@@ -90,7 +90,8 @@ def getCoinPrice(log, client, coin):
 
 def savePriceInDatabase(log, currentTime, coin, currentPrice):
   try:
-    query = "INSERT INTO price_history VALUES (" + str(currentTime) + ",'" + coin + "'," + str(currentPrice) + ")"
+    prettyDate = datetime.datetime.fromtimestamp(currentTime).strftime("%Y-%m-%d_%H-%M-%S")
+    query = "INSERT INTO price_history VALUES (" + str(currentTime) + ",'" + prettyDate + "','" + coin + "'," + str(currentPrice) + ")"
     log.info(query)
     databaseConnection.execute(query)
     databaseConnection.commit()

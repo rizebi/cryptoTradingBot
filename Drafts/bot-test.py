@@ -11,14 +11,14 @@ peakIndexTreshold = 0.005
 # Buy if difference between current price and lookBackIntervals datapoints ago is bigger than lastlookBackIntervalsIndexTreshold
 # Currently this seems not to matter
 lastlookBackIntervalsIndexTreshold = 0.00005
-cooldownDatapoints = 2
 feesPercentage = 0.001
 
+cooldownDatapoints = 10#2#4
 # Mow many datapoints to aggregate (average)
-aggregatedBy = 240
+aggregatedBy = 30#240#120
 # The bot will buy if  the current price is above average for lookBackIntervals
 # These are big intervals. Aggregated ones
-lookBackIntervals = 5
+lookBackIntervals = 10#5#10
 
 def runBot(inputFile):
 
@@ -218,4 +218,4 @@ def runBot(inputFile):
 
 
 if __name__ == "__main__":
-  runBot("2019-01.csv")
+  runBot("2019-01-rev.csv")
