@@ -82,19 +82,20 @@ def getLastTransactionStatus(config, coin):
       currentDollars = 0
     else:
       currentDollars = 100 #TODO add in config
-    return {"timestamp": 0, "doWeHaveCrypto": False, "tradeRealPrice": 0, "tradeAggregatedPrice": 0, "currentDollars": currentDollars, "cryptoQuantity": 0, "gainOrLoss": 0, "maximumPrice": 0}
+    return {"timestamp": 0, "doWeHaveCrypto": False, "tradeRealPrice": 0, "tradeAggregatedPrice": 0, "currentDollars": currentDollars, "cryptoQuantity": 0, "gainOrLoss": 0, "maximumPrice": 0, "maximumAggregatedPrice": 0}
   else:
     if lastTransaction[0][3] == "BUY":
       doWeHaveCrypto = True
       # If de we have crypto, we have to gate from history the maximum value of crypto after buying
       if config["dry_run"] == "false":
-        maximumPrice = getMaximumPriceAfterLastTransactionFromDatabase(config, int(lastTransaction[0][0]))
+        maximumPrice, maximumAggregatedPrice = getMaximumPriceAfterLastTransactionFromDatabase(config, int(lastTransaction[0][0]))
       else:
-        maximumPrice = getMaximumPriceAfterLastTransactionFromFile(config, int(lastTransaction[0][0]))
+        maximumPrice, maximumAggregatedPrice = getMaximumPriceAfterLastTransactionFromFile(config, int(lastTransaction[0][0]))
     else:
       doWeHaveCrypto = False
       maximumPrice = 0
-    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "tradeRealPrice": float(lastTransaction[0][4]), "tradeAggregatedPrice": float(lastTransaction[0][5]), "currentDollars": float(lastTransaction[0][6]), "cryptoQuantity": float(lastTransaction[0][7]), "gainOrLoss": float(lastTransaction[0][8]), "maximumPrice": maximumPrice}
+      maximumAggregatedPrice = 0
+    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "tradeRealPrice": float(lastTransaction[0][4]), "tradeAggregatedPrice": float(lastTransaction[0][5]), "currentDollars": float(lastTransaction[0][6]), "cryptoQuantity": float(lastTransaction[0][7]), "gainOrLoss": float(lastTransaction[0][8]), "maximumPrice": maximumPrice, "maximumAggregatedPrice": maximumAggregatedPrice}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
 def getMaximumPriceAfterLastTransactionFromDatabase(config, lastBuyingTimestamp):
@@ -135,8 +136,8 @@ def getMaximumPriceAfterLastTransactionFromDatabase(config, lastBuyingTimestamp)
     suma += pricesList[i]
     lenSuma += 1
 
-  maximumPriceNormalized = suma / lenSuma
-  return maximumPriceNormalized
+  maximumAggregatedPrice = suma / lenSuma
+  return maximumPrice, maximumAggregatedPrice
 
 # Used from backtesting
 def getMaximumPriceAfterLastTransactionFromFile(config, lastBuyingTimestamp):
@@ -152,18 +153,14 @@ def getMaximumPriceAfterLastTransactionFromFile(config, lastBuyingTimestamp):
       maximumPrice = config["dataPoints"][i]
       maximumIndex = i
 
-  log.info("maximumPrice = " + str(maximumPrice))
-  log.info("maximumIndex = " + str(maximumIndex))
   # Now try to normalize (average with neighbors).
   maximumIndexDiffEnd = (currentDatapoint - 1) - maximumIndex
   if maximumIndexDiffEnd >= int(config["aggregated_by"]) / 2:
     # We can put maximum exactly in the middle
-    log.info("We can put maximum exactly in the middle")
     startIndex = int(maximumIndex - int(config["aggregated_by"]) / 2)
     endIndex = int(maximumIndex + int(config["aggregated_by"]) / 2)
   else:
     # We cannot put maximum exactly in the middle
-    log.info("We CANNOT put maximum exactly in the middle")
     endIndex = int(currentDatapoint - 1)
     startIndex = int(endIndex - int(config["aggregated_by"]))
   suma = 0
@@ -174,13 +171,8 @@ def getMaximumPriceAfterLastTransactionFromFile(config, lastBuyingTimestamp):
     suma += config["dataPoints"][i]
     lenSuma += 1
 
-  maximumPriceNormalized = suma / lenSuma
-  log.info("startIndex = " + str(startIndex))
-  log.info("endIndex = " + str(endIndex))
-  log.info("lenSuma = " + str(lenSuma))
-  log.info("maximumPriceNormalized = " + str(maximumPriceNormalized))
-
-  return maximumPriceNormalized
+  maximumAggregatedPrice = suma / lenSuma
+  return maximumPrice, maximumAggregatedPrice
 
 def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity):
   log = config["log"]

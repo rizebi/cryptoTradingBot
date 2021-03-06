@@ -153,6 +153,7 @@ def trade(config):
     message += "currentRealPrice = " + str(currentRealPrice) + "\n"
     message += "tradeAggregatedPrice = " + str(tradeAggregatedPrice) + "\n"
     message += "maximumPrice = " + str(maximumPrice) + "\n"
+    message += "maximumAggregatedPrice = " + str(maximumAggregatedPrice) + "\n"
     message += "aquisitionDiffPrice = " + str(aquisitionDiffPrice) + "\n"
     message += "peakDiffPrice = " + str(peakDiffPrice) + "\n"
     message += "peakIndex = " + str(peakIndex) + "\n"
@@ -183,6 +184,7 @@ def trade(config):
   # Get parameters from config
   # Sell if difference between maximum price for current trade - current price > peakIndexTreshold
   peakIndexTreshold = float(config["peak_index_treshold"])
+  peakIndexTresholdIgnoreCooldown = float(config["peak_index_treshold_ignore_cooldown"])
   # Buy if difference between current price and lookBackIntervals datapoints ago is bigger than lastlookBackIntervalsIndexTreshold
   lastlookBackIntervalsIndexTreshold = float(config["buy_lookback_intervals_index_treshold"])
   cooldownMinutesBuy = int(config["cooldown_minutes_buy"])
@@ -232,6 +234,7 @@ def trade(config):
     cryptoQuantity = status["cryptoQuantity"]
     gainOrLoss = status["gainOrLoss"]
     maximumPrice = status["maximumPrice"]
+    maximumAggregatedPrice = status["maximumAggregatedPrice"]
 
     # Now the logic comes. To buy, to wait, to sell
     currentRealPrice = realHistory[-1]
@@ -244,16 +247,18 @@ def trade(config):
       log.info("tradeRealPrice = " + str(tradeRealPrice))
       log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
       log.info("maximumPrice = " + str(maximumPrice))
+      log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
     log.info("aggregatedHistory = " + str(aggregatedHistory))
 
     if doWeHaveCrypto == True:
       # Calculate peakIndex
       aquisitionDiffPrice = currentRealPrice - tradeRealPrice
-      peakDiffPrice = currentAggregatedPrice - maximumPrice
-      peakIndex = peakDiffPrice / maximumPrice
+      peakDiffPrice = currentAggregatedPrice - maximumAggregatedPrice
+      peakIndex = peakDiffPrice / maximumAggregatedPrice
       log.info("peakDiffPrice = " + str(peakDiffPrice))
       log.info("peakIndex = " + str('{:.10f}'.format(peakIndex)))
       log.info("peakIndexTreshold = " + str('{:.10f}'.format(peakIndexTreshold)))
+      log.info("peakIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(peakIndexTresholdIgnoreCooldown)))
 
       if peakIndex >= 0:
         gain = aquisitionDiffPrice * cryptoQuantity
@@ -272,6 +277,12 @@ def trade(config):
             else:
               cooldownExpression = config["currentDatapoint"] - lastTradeTimestamp < int(cooldownMinutesSellPeak)
           if cooldownExpression:
+            if peakIndex < (-1) * peakIndexTresholdIgnoreCooldown:
+              # We exceeded the BIG treshold, get out. Ignore cooldown
+              # SELL
+              sellHandler(config, currentDollars, cryptoQuantity, "We exceeded the BIG treshold, get out, ignoring cooldown")
+              time.sleep(timeBetweenRuns)
+              continue
             log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
             if config["dry_run"] == "false":
               waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
