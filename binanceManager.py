@@ -3,9 +3,9 @@ from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
 def getCurrencyBalance(log, sendMessage, config, binanceClient, currency):
-  log.info("Get balancer for: " + currency)
+  log.info("Get balance for: " + currency)
   i = 0
-  while i <= 5:
+  while i <= 10:
     i += 1
     try:
       if i > 1:
@@ -31,7 +31,7 @@ def getCurrencyBalance(log, sendMessage, config, binanceClient, currency):
     message = "[ERROR] Couldn't get balances from Binance after 10 retries"
     log.info(message)
     sendMessage(log, config, message)
-    returnValue = -14
+    returnValue = -10000
 
   if config["dry_run"] == "false":
     for currency_balance in balances:
@@ -92,7 +92,7 @@ def wait_for_order(log, sendMessage, config, binanceClient, symbol, order_id):
       message = "[ERROR] When waiting for order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-      time.sleep(1)
+      time.sleep(5)
 
     if i == 10 or i == 100 or i == 500:
       message = "[ERROR] Couldn't wait for order after " + str(i) + " retries"
@@ -116,7 +116,7 @@ def wait_for_order(log, sendMessage, config, binanceClient, symbol, order_id):
       message = "[ERROR] when querying if status is FILLED: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-      time.sleep(1)
+      time.sleep(5)
 
     if i == 10 or i == 100 or i == 500:
       message = "[ERROR] Couldn't query if status is FILLED " + str(i) + " retries"
@@ -151,12 +151,11 @@ def buyCrypto(log, sendMessage, config, binanceClient):
       message = "[ERROR API] when placing BUY crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-      time.sleep(1)
     except Exception as e:
       message = "[ERROR] when placing BUY crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-      time.sleep(1)
+    time.sleep(3)
 
     if i == 10 or i == 100 or i == 500:
       message = "[ERROR] Couldn't place BUY crypto order " + str(i) + " retries"
@@ -221,12 +220,11 @@ def sellCrypto(log, sendMessage, config, binanceClient):
       message = "[ERROR API] when placing SELL crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-      time.sleep(1)
     except Exception as e:
       message = "[ERROR] when placing SELL crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-      time.sleep(1)
+    time.sleep(3)
 
     if i == 10 or i == 100 or i == 500:
       message = "[ERROR] Couldn't place SELL crypto order " + str(i) + " retries"

@@ -38,9 +38,9 @@ def getPriceHistory(log, sendMessage, config, databaseClient, binanceClient, coi
 
 # Function that reads from DB the last transaction
 def getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceClient, coin):
-  # Get current balance
-  currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, "USDT")
-  cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, "BTC")
+  # Get current balance. Do I really need to to this? Isn't it enough to take the data from last transaction?
+  #currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, "USDT")
+  #cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, "BTC")
 
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT * FROM trade_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(1))
@@ -53,7 +53,7 @@ def getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceCl
       doWeHaveCrypto = True
     else:
       doWeHaveCrypto = False
-    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": float(lastTransaction[0][4]), "currentDollars": float(currentDollars), "cryptoQuantity": float(cryptoQuantity), "gainOrLoss": float(lastTransaction[0][7])}
+    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": float(lastTransaction[0][4]), "currentDollars": float(lastTransaction[0][5]), "cryptoQuantity": float(lastTransaction[0][6]), "gainOrLoss": float(lastTransaction[0][7])}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
 def getMaximumPriceAfter(log, sendMessage, config, databaseClient, binanceClient, lastBuyingTimestamp):
