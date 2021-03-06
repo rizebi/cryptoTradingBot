@@ -22,7 +22,6 @@ from databaseManager import getPriceHistoryFromFile
 from databaseManager import getLastTransactionStatus
 from databaseManager import insertTradeHistory
 from databaseManager import emptyTradeHistoryDatabase
-from databaseManager import getMaximumPriceAfterLastTransactionFromDatabase #TODO not needed
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
@@ -53,7 +52,8 @@ def getLogger():
   return log
 
 # Function that sends a message to Telegram
-def sendMessage(log, config, message):
+def sendMessage(config, message):
+  log = config["log"]
   try:
     payload = {
         'chat_id': config["bot_chat_id"],
@@ -68,7 +68,8 @@ def sendMessage(log, config, message):
     log.info(tracebackError)
 
 # For back-testing
-def readDataFromFile(log, sendMessage, config, databaseClient, binanceClient):
+def readDataFromFile(config):
+  log = config["log"]
   priceFile = open(config["backtest_file"], "r")
   data = priceFile.read().split("\n")[0:-1]
   # Sanitize data
@@ -82,12 +83,13 @@ def readDataFromFile(log, sendMessage, config, databaseClient, binanceClient):
       dataPoints.append(float(element))
   config["dataPoints"] = dataPoints
 
-def constructHistory(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns):
+def constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns):
+  log = config["log"]
   # Get the price history from database
   if config["dry_run"] == "false":
-    realHistory = getPriceHistoryFromDatabase(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy * lookBackIntervals)
+    realHistory = getPriceHistoryFromDatabase(config, coin, aggregatedBy * lookBackIntervals)
   else:
-    realHistory = getPriceHistoryFromFile(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy * lookBackIntervals)
+    realHistory = getPriceHistoryFromFile(config, coin, aggregatedBy * lookBackIntervals)
   if len(realHistory) < aggregatedBy * lookBackIntervals:
     return [], []
 
@@ -106,10 +108,12 @@ def constructHistory(log, sendMessage, config, databaseClient, binanceClient, co
   return realHistory, aggregatedHistory
 
 # Function that makes the trades
-def trade(log, sendMessage, config, databaseClient, binanceClient):
-
+def trade(config):
+  log = config["log"]
   # Function that is called when a buy trade should be made
-  def buyHandler(log, sendMessage, config, databaseClient, binanceClient, currentDollars, cryptoQuantity):
+  def buyHandler(config, currentDollars, cryptoQuantity):
+    log = config["log"]
+    sendMessage = config["sendMessage"]
     message = "[BUY]\n"
     message += "aggregatedHistory:\n"
     for price in aggregatedHistory:
@@ -120,23 +124,28 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
     message += "averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)) + "\n"
     message += "lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)) + "\n"
     log.info(message)
-    sendMessage(log, config, message)
-    tradePrice = buyCrypto(log, sendMessage, config, binanceClient)
+    sendMessage(config, message)
+    tradePrice = buyCrypto(config)
 
     # Insert in trade_history
     if config["dry_run"] == "false":
       # Update variables
-      cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
-      currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
+      cryptoQuantity = getCurrencyBalance(config, 'BTC')
+      currentDollars = getCurrencyBalance(config, 'USDT')
     else:
-      #TODOORIGINALtradePrice = currentRealPrice
+      #tradePrice = currentRealPrice
+      #cryptoQuantity = currentDollars / tradePrice
       tradePrice = currentAggregatedPrice
+      cryptoQuantity = currentDollars / currentRealPrice
+
       cryptoQuantity = currentDollars / tradePrice
       cryptoQuantity -= 0.001 * cryptoQuantity
       currentDollars = 0
-    insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "BUY", tradePrice, currentDollars, cryptoQuantity)
+    insertTradeHistory(config, currentTime, coin, "BUY", tradePrice, currentDollars, cryptoQuantity)
 
-  def sellHandler(log, sendMessage, config, databaseClient, binanceClient, currentDollars, cryptoQuantity, sellReason):
+  def sellHandler(config, currentDollars, cryptoQuantity, sellReason):
+    log = config["log"]
+    sendMessage = config["sendMessage"]
     message = "[SELL] " + sellReason + "\n"
     message += "aggregatedHistory:\n"
     for price in aggregatedHistory:
@@ -151,21 +160,23 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
     message += "peakIndex = " + str(peakIndex) + "\n"
     message += "peakIndexTreshold = " + str(peakIndexTreshold) + "\n"
     log.info(message)
-    sendMessage(log, config, message)
-    tradePrice = sellCrypto(log, sendMessage, config, binanceClient)
+    sendMessage(config, message)
+    tradePrice = sellCrypto(config)
 
     # Insert in trade_history
     if config["dry_run"] == "false":
       # Update variables
-      cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
-      currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
+      cryptoQuantity = getCurrencyBalance(config, 'BTC')
+      currentDollars = getCurrencyBalance(config, 'USDT')
     else:
-      #TODOORIGINALtradePrice = currentRealPrice
+      #tradePrice = currentRealPrice
+      #currentDollars = cryptoQuantity * tradePrice
       tradePrice = currentAggregatedPrice
-      currentDollars = cryptoQuantity * tradePrice
+      currentDollars = cryptoQuantity * currentRealPrice
+
       currentDollars -= 0.001 * currentDollars
       cryptoQuantity = 0
-    insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, "SELL", tradePrice, currentDollars, cryptoQuantity)
+    insertTradeHistory(config, currentTime, coin, "SELL", tradePrice, currentDollars, cryptoQuantity)
 
 
   # First we need to get the current state of liquidity
@@ -188,19 +199,16 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
   # Time between runs
   timeBetweenRuns = int(config["seconds_between_scrapes"])
 
-  # TODO debug
-  #getMaximumPriceAfterLastTransactionFromDatabase(log, sendMessage, config, databaseClient, binanceClient, 1615048605)
-  #return 0
-
   # Dry run configurations
   config["currentDatapoint"] = 0 # for backtesting when reading from file
   runOnce = False # for backtesting
   if config["dry_run"] == "true":
-    emptyTradeHistoryDatabase(log, sendMessage, config, databaseClient, binanceClient)
-    readDataFromFile(log, sendMessage, config, databaseClient, binanceClient)
+    emptyTradeHistoryDatabase(config)
+    readDataFromFile(config)
   while True:
     # Update logger handler
     log = getLogger()
+    config["log"] = log
     currentTime = int(time.time())
     config["currentDatapoint"] += 1
     if config["dry_run"] == "false":
@@ -208,7 +216,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
     else:
       log.info("[Datapoint " + str(config["currentDatapoint"]) + "] ######################################################")
     # Get price history
-    realHistory, aggregatedHistory = constructHistory(log, sendMessage, config, databaseClient, binanceClient, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns)
+    realHistory, aggregatedHistory = constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns)
     if len(realHistory) == 0:
       if config["dry_run"] == "true" and runOnce == True:
         log.info("Backtesting ended. Exiting.")
@@ -218,7 +226,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       continue
     runOnce = True
     # Get last transaction status
-    status = getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceClient, coin)
+    status = getLastTransactionStatus(config, coin)
     lastTradeTimestamp = int(status["timestamp"])
     doWeHaveCrypto = status["doWeHaveCrypto"]
     buyingPrice = status["buyingPrice"]
@@ -275,7 +283,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
             continue
           # We exceeded treshold, get out
           # SELL
-          sellHandler(log, sendMessage, config, databaseClient, binanceClient, currentDollars, cryptoQuantity, "We exceeded treshold, get out")
+          sellHandler(config, currentDollars, cryptoQuantity, "We exceeded treshold, get out")
           time.sleep(timeBetweenRuns)
           continue
         else:
@@ -302,7 +310,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
           time.sleep(timeBetweenRuns)
           continue
         # SELL
-        sellHandler(log, sendMessage, config, databaseClient, binanceClient, currentDollars, cryptoQuantity, "currentAggregatedPrice < buyingPrice")
+        sellHandler(config, currentDollars, cryptoQuantity, "currentAggregatedPrice < buyingPrice")
         time.sleep(timeBetweenRuns)
         continue
     else:
@@ -344,7 +352,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
             continue
 
           # Buy
-          buyHandler(log, sendMessage, config, databaseClient, binanceClient, currentDollars, cryptoQuantity)
+          buyHandler(config, currentDollars, cryptoQuantity)
           time.sleep(timeBetweenRuns)
           continue
     # In case we have missed a time.sleep in the logic
@@ -360,21 +368,22 @@ def mainFunction():
     if os.path.isfile(configFile) is False:
       message = "[FATAL] Config file does not exist. Exiting"
       log.info(message)
-      sendMessage(log, config, message)
+      sendMessage(config, message)
       sys.exit(1)
 
     # Read config file
     configObj = configparser.ConfigParser()
     configObj.read(configFile)
     config = configObj._sections[configSection]
-
-    sendMessage(log, config, "[INFO] Bot restarted")
+    config["sendMessage"] = sendMessage
+    config["log"] = log
+    sendMessage(config, "[INFO] Bot restarted")
 
     # Create the database if it not exists
     if os.path.isfile(config["database_file"]) is False:
       message = "[FATAL] Database not found. Exiting."
       log.info(message)
-      sendMessage(log, config, message)
+      sendMessage(config, message)
       sys.exit(2)
 
     # Connect to database
@@ -384,17 +393,19 @@ def mainFunction():
       message = "[FATAL] Couldn't connect to the database. Investigate manually"
       log.info(message)
       log.info(e)
-      sendMessage(log, config, message)
+      sendMessage(config, message)
       sys.exit(2)
 
+    config["databaseClient"] = databaseClient
     # Create table if it not exists
-    createTables(log, sendMessage, config, databaseClient)
+    createTables(config)
 
     # Get Binance client
     binanceClient = Client(config["api_key"], config["api_secret_key"])
+    config["binanceClient"] = binanceClient
 
     # The function should never end, that scrape, and write in the database
-    trade(log, sendMessage, config, databaseClient, binanceClient)
+    trade(config)
 
     # Commit and close
     try:
@@ -402,14 +413,14 @@ def mainFunction():
       databaseClient.close()
       message = "[FATAL] Unexpected end of script. Database successfully commited and closed"
       log.info(message)
-      sendMessage(log, config, message)
+      sendMessage(config, message)
     except Exception as e:
       message = "[FATAL] Unexpected end of script. Database successfully commited and closed"
       log.info(message)
       log.info("Fatal Error: {}".format(e))
       tracebackError = traceback.format_exc()
       log.info(tracebackError)
-      sendMessage(log, config, message)
+      sendMessage(config, message)
 
 
   ##### END #####
@@ -420,7 +431,7 @@ def mainFunction():
     except:
       message = "[FATAL] Could not commit and close DB connection"
       log.info(message)
-      sendMessage(log, config, message)
+      sendMessage(config, message)
     log.info("DB commited and closed. Gracefully quiting")
     sys.exit(0)
   except Exception as e:
@@ -433,8 +444,8 @@ def mainFunction():
     except:
       message = "[FATAL] Could not commit and close DB connection."
       log.info(message)
-      sendMessage(log, config, message)
-    sendMessage(log, config, str(e) + "\n\n\n\n" + str(tracebackError))
+      sendMessage(config, message)
+    sendMessage(config, str(e) + "\n\n\n\n" + str(tracebackError))
     sys.exit(99)
 
 

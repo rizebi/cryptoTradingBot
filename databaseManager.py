@@ -1,8 +1,10 @@
 import time
 import datetime
-from binanceManager import getCurrencyBalance
 
-def createTables(log, sendMessage, config, databaseClient):
+def createTables(config):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   log.info("Check if table <trade_history> exits")
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -17,12 +19,18 @@ def createTables(log, sendMessage, config, databaseClient):
   log.info("Table <trade_history> successfully created.")
 
 # Funcion used only when back_testing
-def emptyTradeHistoryDatabase(log, sendMessage, config, databaseClient, binanceClient):
+def emptyTradeHistoryDatabase(config):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   log.info("EMPTYING trade_history table.")
   databaseClient.execute('''DELETE FROM trade_history''')
   databaseClient.commit()
 
-def getPriceHistoryFromDatabase(log, sendMessage, config, databaseClient, binanceClient, coin, howMany):
+def getPriceHistoryFromDatabase(config, coin, howMany):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   # First, check the latest timestamp from database. If this is old, will return []
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT max(timestamp) FROM price_history")
@@ -31,7 +39,7 @@ def getPriceHistoryFromDatabase(log, sendMessage, config, databaseClient, binanc
   if currentTime - float(dataPointsObj[0][0]) > 300:
     message = "[ERROR] Too old price history in database. Maybe scraper is down. Skipping the bot run for this time."
     log.info(message)
-    sendMessage(log, config, message)
+    sendMessage(config, message)
     return []
 
   # TODO here might be a problem when ordering by timestamp
@@ -46,7 +54,10 @@ def getPriceHistoryFromDatabase(log, sendMessage, config, databaseClient, binanc
   return dataPoints
 
 
-def getPriceHistoryFromFile(log, sendMessage, config, databaseClient, binanceClient, coin, howMany):
+def getPriceHistoryFromFile(config, coin, howMany):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   aggregatedBy = int(config["aggregated_by"])
   lookBackIntervals = int(config["buy_lookback_intervals"])
   currentDatapoint = config["currentDatapoint"]
@@ -58,10 +69,10 @@ def getPriceHistoryFromFile(log, sendMessage, config, databaseClient, binanceCli
   return dataPoints[currentDatapoint - aggregatedBy * lookBackIntervals: currentDatapoint]
 
 # Function that reads from DB the last transaction
-def getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceClient, coin):
-  # Get current balance. Do I really need to to this? Isn't it enough to take the data from last transaction?
-  #currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, "USDT")
-  #cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, "BTC")
+def getLastTransactionStatus(config, coin):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT * FROM trade_history WHERE coin='" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')")
   lastTransaction = databaseCursor.fetchall()
@@ -77,16 +88,19 @@ def getLastTransactionStatus(log, sendMessage, config, databaseClient, binanceCl
       doWeHaveCrypto = True
       # If de we have crypto, we have to gate from history the maximum value of crypto after buying
       if config["dry_run"] == "false":
-        maximumPrice = getMaximumPriceAfterLastTransactionFromDatabase(log, sendMessage, config, databaseClient, binanceClient, int(lastTransaction[0][0]))
+        maximumPrice = getMaximumPriceAfterLastTransactionFromDatabase(config, int(lastTransaction[0][0]))
       else:
-        maximumPrice = getMaximumPriceAfterLastTransactionFromFile(log, sendMessage, config, databaseClient, binanceClient, int(lastTransaction[0][0]))
+        maximumPrice = getMaximumPriceAfterLastTransactionFromFile(config, int(lastTransaction[0][0]))
     else:
       doWeHaveCrypto = False
       maximumPrice = 0
     return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": float(lastTransaction[0][4]), "currentDollars": float(lastTransaction[0][5]), "cryptoQuantity": float(lastTransaction[0][6]), "gainOrLoss": float(lastTransaction[0][7]), "maximumPrice": maximumPrice}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
-def getMaximumPriceAfterLastTransactionFromDatabase(log, sendMessage, config, databaseClient, binanceClient, lastBuyingTimestamp):
+def getMaximumPriceAfterLastTransactionFromDatabase(config, lastBuyingTimestamp):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   coin = "BTCUSDT"
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT timestamp, max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(lastBuyingTimestamp))
@@ -125,8 +139,10 @@ def getMaximumPriceAfterLastTransactionFromDatabase(log, sendMessage, config, da
   return maximumPriceNormalized
 
 # Used from backtesting
-def getMaximumPriceAfterLastTransactionFromFile(log, sendMessage, config, databaseClient, binanceClient, lastBuyingTimestamp):
-
+def getMaximumPriceAfterLastTransactionFromFile(config, lastBuyingTimestamp):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   currentDatapoint = config["currentDatapoint"]
   i = lastBuyingTimestamp - 2
   maximumPrice = 0
@@ -166,7 +182,10 @@ def getMaximumPriceAfterLastTransactionFromFile(log, sendMessage, config, databa
 
   return maximumPriceNormalized
 
-def insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, currentTime, coin, action, tradePrice, currentDollars, cryptoQuantity):
+def insertTradeHistory(config, currentTime, coin, action, tradePrice, currentDollars, cryptoQuantity):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  sendMessage = config["sendMessage"]
   # Here we have to calculate the gainOrLoss
   gainOrLoss = 0
   databaseCursor = databaseClient.cursor()
@@ -190,4 +209,4 @@ def insertTradeHistory(log, sendMessage, config, databaseClient, binanceClient, 
   except Exception as e:
     message = "[ERROR] When saving scraping in the database: " + str(e)
     log.info(message)
-    sendMessage(log, config, message)
+    sendMessage(config, message)
