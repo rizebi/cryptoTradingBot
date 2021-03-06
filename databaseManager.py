@@ -91,35 +91,25 @@ def getMaximumPriceAfterLastTransactionFromDatabase(log, sendMessage, config, da
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT timestamp, max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(lastBuyingTimestamp))
   maximumPriceObj = databaseCursor.fetchall()
-
   maximumPriceTimestamp = int(maximumPriceObj[0][0])
   maximumPrice = float(maximumPriceObj[0][1])
-  log.info("maximumPriceTimestamp = " + str(maximumPriceTimestamp))
-
 
   # Get list
   databaseCursor = databaseClient.cursor()
   query = "SELECT price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(maximumPriceTimestamp - 70 * int(config["aggregated_by"])) + " AND timestamp <= " + str(maximumPriceTimestamp + 70 * int(config["aggregated_by"]))
-  log.info(query)
   databaseCursor.execute(query)
   pricesList = []
   for entry in databaseCursor.fetchall():
     pricesList.append(entry[0])
 
-  log.info("maximumPrice = " + str(maximumPrice))
-  log.info("pricesList = " + str(pricesList))
   maximumIndex = pricesList.index(maximumPrice)
-  log.info("len(pricesList) = " + str(len(pricesList)))
-  log.info("maximumIndex = " + str(maximumIndex))
   currentTime = int(time.time())
   if (currentTime - maximumPriceTimestamp) / 60 >= int(config["aggregated_by"]) / 2:
     # We can put maximum exactly in the middle
-    log.info("We can put maximum exactly in the middle")
     startIndex = int(maximumIndex - int(config["aggregated_by"]) / 2)
     endIndex = int(maximumIndex + int(config["aggregated_by"]) / 2)
   else:
     # We cannot put maximum exactly in the middle
-    log.info("We CANNOT put maximum exactly in the middle")
     endIndex = int(len(pricesList) - 1)
     startIndex = int(endIndex - int(config["aggregated_by"]))
 
@@ -132,11 +122,6 @@ def getMaximumPriceAfterLastTransactionFromDatabase(log, sendMessage, config, da
     lenSuma += 1
 
   maximumPriceNormalized = suma / lenSuma
-  log.info("startIndex = " + str(startIndex))
-  log.info("endIndex = " + str(endIndex))
-  log.info("lenSuma = " + str(lenSuma))
-  log.info("maximumPriceNormalized = " + str(maximumPriceNormalized))
-
   return maximumPriceNormalized
 
 # Used from backtesting
