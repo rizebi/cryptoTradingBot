@@ -22,7 +22,7 @@ from databaseManager import getPriceHistoryFromFile
 from databaseManager import getLastTransactionStatus
 from databaseManager import insertTradeHistory
 from databaseManager import emptyTradeHistoryDatabase
-
+from databaseManager import getMaximumPriceAfterLastTransactionFromDatabase #TODO not needed
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
@@ -129,7 +129,8 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
       currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
     else:
-      tradePrice = currentRealPrice
+      #TODOORIGINALtradePrice = currentRealPrice
+      tradePrice = currentAggregatedPrice
       cryptoQuantity = currentDollars / tradePrice
       cryptoQuantity -= 0.001 * cryptoQuantity
       currentDollars = 0
@@ -159,7 +160,8 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       cryptoQuantity = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
       currentDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
     else:
-      tradePrice = currentRealPrice
+      #TODOORIGINALtradePrice = currentRealPrice
+      tradePrice = currentAggregatedPrice
       currentDollars = cryptoQuantity * tradePrice
       currentDollars -= 0.001 * currentDollars
       cryptoQuantity = 0
@@ -186,6 +188,9 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
   # Time between runs
   timeBetweenRuns = int(config["seconds_between_scrapes"])
 
+  # TODO debug
+  #getMaximumPriceAfterLastTransactionFromDatabase(log, sendMessage, config, databaseClient, binanceClient, 1615048605)
+  #return 0
 
   # Dry run configurations
   config["currentDatapoint"] = 0 # for backtesting when reading from file
@@ -241,6 +246,7 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       peakIndex = peakDiffPrice / maximumPrice
       log.info("peakDiffPrice = " + str(peakDiffPrice))
       log.info("peakIndex = " + str('{:.10f}'.format(peakIndex)))
+      log.info("peakIndexTreshold = " + str('{:.10f}'.format(peakIndexTreshold)))
 
       if peakIndex >= 0:
         gain = aquisitionDiffPrice * cryptoQuantity
@@ -308,7 +314,8 @@ def trade(log, sendMessage, config, databaseClient, binanceClient):
       averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
       averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
       log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
-      log.info("averagelookBackIntervalsDatapointsIndex = " + str(averagelookBackIntervalsDatapointsIndex))
+      log.info("averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)))
+      log.info("lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)))
       if averagelookBackIntervalsDatapointsIndex < 0:
         log.info("Market going down. Keep waiting.")
         time.sleep(timeBetweenRuns)

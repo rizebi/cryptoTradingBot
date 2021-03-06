@@ -3,7 +3,8 @@ from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
 def getCurrencyBalance(log, sendMessage, config, binanceClient, currency):
-  log.info("Get balance for: " + currency)
+  if config["dry_run"] == "false":
+    log.info("Get balance for: " + currency)
   i = 0
   while i <= 10:
     i += 1
@@ -37,7 +38,8 @@ def getCurrencyBalance(log, sendMessage, config, binanceClient, currency):
     for currency_balance in balances:
         if currency_balance[u'asset'] == currency:
             returnValue = float(currency_balance[u'free'])
-  log.info("Got: " + str('{:.10f}'.format(returnValue))  + " " + currency)
+  if config["dry_run"] == "false":
+    log.info("Got: " + str('{:.10f}'.format(returnValue))  + " " + currency)
   return returnValue
 
 def getCurrentCoinPrice(log, sendMessage, config, binanceClient, coin):
@@ -184,13 +186,14 @@ def buyCrypto(log, sendMessage, config, binanceClient):
   oldDollars = currentDollars
   newCrypto = getCurrencyBalance(log, sendMessage, config, binanceClient, 'BTC')
 
-  message = "[BUY Crypto successful]\n"
-  message += "Summary\n"
-  message += "tradePrice = " + str(tradePrice) + "\n"
-  message += "oldDollars = " + str(oldDollars) + "\n"
-  message += "newCrypto = " + str(newCrypto) + "\n"
-  log.info(message)
-  sendMessage(log, config, message)
+  if config["dry_run"] == "false":
+    message = "[BUY Crypto successful]\n"
+    message += "Summary\n"
+    message += "tradePrice = " + str(tradePrice) + "\n"
+    message += "oldDollars = " + str(oldDollars) + "\n"
+    message += "newCrypto = " + str(newCrypto) + "\n"
+    log.info(message)
+    sendMessage(log, config, message)
   return tradePrice
 
 def sellCrypto(log, sendMessage, config, binanceClient):
@@ -255,11 +258,12 @@ def sellCrypto(log, sendMessage, config, binanceClient):
   oldCrypto = currentCrypto
   newDollars = getCurrencyBalance(log, sendMessage, config, binanceClient, 'USDT')
 
-  message = "[SELL Crypto successful]\n"
-  message += "Summary\n"
-  message += "tradePrice = " + str(tradePrice) + "\n"
-  message += "newDollars = " + str(newDollars) + "\n"
-  message += "oldCrypto = " + str(oldCrypto) + "\n"
-  log.info(message)
-  sendMessage(log, config, message)
+  if config["dry_run"] == "false":
+    message = "[SELL Crypto successful]\n"
+    message += "Summary\n"
+    message += "tradePrice = " + str(tradePrice) + "\n"
+    message += "newDollars = " + str(newDollars) + "\n"
+    message += "oldCrypto = " + str(oldCrypto) + "\n"
+    log.info(message)
+    sendMessage(log, config, message)
   return tradePrice
