@@ -151,11 +151,12 @@ def buyCrypto(log, sendMessage, config, binanceClient):
       message = "[ERROR API] when placing BUY crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
+      time.sleep(3)
     except Exception as e:
       message = "[ERROR] when placing BUY crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-    time.sleep(3)
+      time.sleep(3)
 
     if i == 10 or i == 100 or i == 500:
       message = "[ERROR] Couldn't place BUY crypto order " + str(i) + " retries"
@@ -220,11 +221,12 @@ def sellCrypto(log, sendMessage, config, binanceClient):
       message = "[ERROR API] when placing SELL crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
+      time.sleep(3)
     except Exception as e:
       message = "[ERROR] when placing SELL crypto order: " + str(e)
       log.info(message)
       sendMessage(log, config, message)
-    time.sleep(3)
+      time.sleep(3)
 
     if i == 10 or i == 100 or i == 500:
       message = "[ERROR] Couldn't place SELL crypto order " + str(i) + " retries"
