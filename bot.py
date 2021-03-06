@@ -114,18 +114,19 @@ def trade(config):
   def buyHandler(config, currentDollars, cryptoQuantity):
     log = config["log"]
     sendMessage = config["sendMessage"]
+    tradeAggregatedPrice = currentAggregatedPrice
     message = "[BUY]\n"
     message += "aggregatedHistory:\n"
     for price in aggregatedHistory:
       message += str(price) + "\n"
     message += "##########\n"
     message += "currentRealPrice = " + str(currentRealPrice) + "\n"
-    message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
+    message += "tradeAggregatedPrice = " + str(tradeAggregatedPrice) + "\n"
     message += "averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)) + "\n"
     message += "lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)) + "\n"
     log.info(message)
     sendMessage(config, message)
-    tradePrice = buyCrypto(config)
+    tradeRealPrice = buyCrypto(config)
 
     # Insert in trade_history
     if config["dry_run"] == "false":
@@ -133,27 +134,24 @@ def trade(config):
       cryptoQuantity = getCurrencyBalance(config, 'BTC')
       currentDollars = getCurrencyBalance(config, 'USDT')
     else:
-      #tradePrice = currentRealPrice
-      #cryptoQuantity = currentDollars / tradePrice
-      tradePrice = currentAggregatedPrice
-      cryptoQuantity = currentDollars / currentRealPrice
-
-      cryptoQuantity = currentDollars / tradePrice
+      tradeRealPrice = currentRealPrice
+      tradeAggregatedPrice = currentAggregatedPrice
+      cryptoQuantity = currentDollars / tradeRealPrice
       cryptoQuantity -= 0.001 * cryptoQuantity
       currentDollars = 0
-    insertTradeHistory(config, currentTime, coin, "BUY", tradePrice, currentDollars, cryptoQuantity)
+    insertTradeHistory(config, currentTime, coin, "BUY", tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity)
 
   def sellHandler(config, currentDollars, cryptoQuantity, sellReason):
     log = config["log"]
     sendMessage = config["sendMessage"]
+    tradeAggregatedPrice = currentAggregatedPrice
     message = "[SELL] " + sellReason + "\n"
     message += "aggregatedHistory:\n"
     for price in aggregatedHistory:
       message += str(price) + "\n"
     message += "##########\n"
     message += "currentRealPrice = " + str(currentRealPrice) + "\n"
-    message += "currentAggregatedPrice = " + str(currentAggregatedPrice) + "\n"
-    message += "buyingPrice = " + str(buyingPrice) + "\n"
+    message += "tradeAggregatedPrice = " + str(tradeAggregatedPrice) + "\n"
     message += "maximumPrice = " + str(maximumPrice) + "\n"
     message += "aquisitionDiffPrice = " + str(aquisitionDiffPrice) + "\n"
     message += "peakDiffPrice = " + str(peakDiffPrice) + "\n"
@@ -161,7 +159,8 @@ def trade(config):
     message += "peakIndexTreshold = " + str(peakIndexTreshold) + "\n"
     log.info(message)
     sendMessage(config, message)
-    tradePrice = sellCrypto(config)
+    # Actual sell
+    tradeRealPrice = sellCrypto(config)
 
     # Insert in trade_history
     if config["dry_run"] == "false":
@@ -169,14 +168,12 @@ def trade(config):
       cryptoQuantity = getCurrencyBalance(config, 'BTC')
       currentDollars = getCurrencyBalance(config, 'USDT')
     else:
-      #tradePrice = currentRealPrice
-      #currentDollars = cryptoQuantity * tradePrice
-      tradePrice = currentAggregatedPrice
-      currentDollars = cryptoQuantity * currentRealPrice
-
+      tradeRealPrice = currentRealPrice
+      tradeAggregatedPrice = currentAggregatedPrice
+      currentDollars = cryptoQuantity * tradeRealPrice
       currentDollars -= 0.001 * currentDollars
       cryptoQuantity = 0
-    insertTradeHistory(config, currentTime, coin, "SELL", tradePrice, currentDollars, cryptoQuantity)
+    insertTradeHistory(config, currentTime, coin, "SELL", tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity)
 
 
   # First we need to get the current state of liquidity
@@ -229,7 +226,8 @@ def trade(config):
     status = getLastTransactionStatus(config, coin)
     lastTradeTimestamp = int(status["timestamp"])
     doWeHaveCrypto = status["doWeHaveCrypto"]
-    buyingPrice = status["buyingPrice"]
+    tradeRealPrice = status["tradeRealPrice"]
+    tradeAggregatedPrice = status["tradeAggregatedPrice"]
     currentDollars = status["currentDollars"]
     cryptoQuantity = status["cryptoQuantity"]
     gainOrLoss = status["gainOrLoss"]
@@ -243,13 +241,14 @@ def trade(config):
     log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
     log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
     if doWeHaveCrypto == True:
-      log.info("buyingPrice = " + str(buyingPrice))
+      log.info("tradeRealPrice = " + str(tradeRealPrice))
+      log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
       log.info("maximumPrice = " + str(maximumPrice))
     log.info("aggregatedHistory = " + str(aggregatedHistory))
 
     if doWeHaveCrypto == True:
       # Calculate peakIndex
-      aquisitionDiffPrice = currentRealPrice - buyingPrice
+      aquisitionDiffPrice = currentRealPrice - tradeRealPrice
       peakDiffPrice = currentAggregatedPrice - maximumPrice
       peakIndex = peakDiffPrice / maximumPrice
       log.info("peakDiffPrice = " + str(peakDiffPrice))
@@ -292,7 +291,7 @@ def trade(config):
           time.sleep(timeBetweenRuns)
           continue
       # SELL strategy 2
-      if currentAggregatedPrice < buyingPrice:
+      if currentAggregatedPrice < tradeAggregatedPrice:
         if config["dry_run"] == "false":
           cooldownExpression = currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice)
         else:
@@ -301,7 +300,7 @@ def trade(config):
           else:
             cooldownExpression = config["currentDatapoint"] - lastTradeTimestamp < int(cooldownMinutesSellBuyPrice)
         if cooldownExpression:
-          log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < buyingPrice")
+          log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
           if config["dry_run"] == "false":
             waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
           else:
@@ -310,7 +309,7 @@ def trade(config):
           time.sleep(timeBetweenRuns)
           continue
         # SELL
-        sellHandler(config, currentDollars, cryptoQuantity, "currentAggregatedPrice < buyingPrice")
+        sellHandler(config, currentDollars, cryptoQuantity, "currentAggregatedPrice < tradeAggregatedPrice")
         time.sleep(timeBetweenRuns)
         continue
     else:
@@ -378,13 +377,6 @@ def mainFunction():
     config["sendMessage"] = sendMessage
     config["log"] = log
     sendMessage(config, "[INFO] Bot restarted")
-
-    # Create the database if it not exists
-    if os.path.isfile(config["database_file"]) is False:
-      message = "[FATAL] Database not found. Exiting."
-      log.info(message)
-      sendMessage(config, message)
-      sys.exit(2)
 
     # Connect to database
     try:

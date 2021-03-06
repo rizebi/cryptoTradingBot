@@ -14,7 +14,7 @@ def createTables(config):
     return
   log.info("Table <trade_history> does not exists. Will create it now.")
   databaseClient.execute('''CREATE TABLE trade_history
-               (timestamp text, date text, coin text, action text, tradePrice real, currentDollars real, cryptoQuantity real, gainOrLoss real)''')
+               (timestamp text, date text, coin text, action text, tradeRealPrice real, tradeAggregatedPrice real, currentDollars real, cryptoQuantity real, gainOrLoss real)''')
   databaseClient.commit()
   log.info("Table <trade_history> successfully created.")
 
@@ -82,7 +82,7 @@ def getLastTransactionStatus(config, coin):
       currentDollars = 0
     else:
       currentDollars = 100 #TODO add in config
-    return {"timestamp": 0, "doWeHaveCrypto": False, "buyingPrice": 0, "currentDollars": currentDollars, "cryptoQuantity": 0, "gainOrLoss": 0, "maximumPrice": 0}
+    return {"timestamp": 0, "doWeHaveCrypto": False, "tradeRealPrice": 0, "tradeAggregatedPrice": 0, "currentDollars": currentDollars, "cryptoQuantity": 0, "gainOrLoss": 0, "maximumPrice": 0}
   else:
     if lastTransaction[0][3] == "BUY":
       doWeHaveCrypto = True
@@ -94,7 +94,7 @@ def getLastTransactionStatus(config, coin):
     else:
       doWeHaveCrypto = False
       maximumPrice = 0
-    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "buyingPrice": float(lastTransaction[0][4]), "currentDollars": float(lastTransaction[0][5]), "cryptoQuantity": float(lastTransaction[0][6]), "gainOrLoss": float(lastTransaction[0][7]), "maximumPrice": maximumPrice}
+    return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "tradeRealPrice": float(lastTransaction[0][4]), "tradeAggregatedPrice": float(lastTransaction[0][5]), "currentDollars": float(lastTransaction[0][6]), "cryptoQuantity": float(lastTransaction[0][7]), "gainOrLoss": float(lastTransaction[0][8]), "maximumPrice": maximumPrice}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
 def getMaximumPriceAfterLastTransactionFromDatabase(config, lastBuyingTimestamp):
@@ -182,7 +182,7 @@ def getMaximumPriceAfterLastTransactionFromFile(config, lastBuyingTimestamp):
 
   return maximumPriceNormalized
 
-def insertTradeHistory(config, currentTime, coin, action, tradePrice, currentDollars, cryptoQuantity):
+def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity):
   log = config["log"]
   databaseClient = config["databaseClient"]
   sendMessage = config["sendMessage"]
@@ -190,7 +190,7 @@ def insertTradeHistory(config, currentTime, coin, action, tradePrice, currentDol
   gainOrLoss = 0
   databaseCursor = databaseClient.cursor()
   if action == "SELL":
-    query = "SELECT tradePrice, cryptoQuantity from trade_history WHERE coin = '" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')"
+    query = "SELECT tradeRealPrice, cryptoQuantity from trade_history WHERE coin = '" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')"
 
     databaseCursor.execute(query)
     dataPointsObj = databaseCursor.fetchall()
@@ -202,7 +202,7 @@ def insertTradeHistory(config, currentTime, coin, action, tradePrice, currentDol
     currentTime = config["currentDatapoint"]
   try:
     prettyDate = datetime.datetime.fromtimestamp(currentTime).strftime("%Y-%m-%d_%H-%M-%S")
-    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + prettyDate + "','" + coin + "','" + action + "'," + str(tradePrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
+    query = "INSERT INTO trade_history VALUES (" + str(currentTime) + ",'" + prettyDate + "','" + coin + "','" + action + "'," + str(tradeRealPrice) + "," + str(tradeAggregatedPrice) + "," + str(currentDollars) + "," + str(cryptoQuantity) + "," + str(gainOrLoss) + ")"
     log.info(query)
     databaseClient.execute(query)
     databaseClient.commit()

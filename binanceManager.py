@@ -74,7 +74,7 @@ def getCurrentCoinPrice(config, coin):
     sendMessage(config, message)
   return None
 
-def getTradePrice(config, order_status):
+def getTradeRealPrice(config, order_status):
   log = config["log"]
   binanceClient = config["binanceClient"]
   sendMessage = config["sendMessage"]
@@ -194,9 +194,9 @@ def buyCrypto(config):
     while newDollars >= oldDollars:
         newDollars = getCurrencyBalance(config, 'USDT')
         time.sleep(5)
-    tradePrice = getTradePrice(config, order_status)
+    tradeRealPrice = getTradeRealPrice(config, order_status)
   else:
-    tradePrice = -10
+    tradeRealPrice = -10
 
   oldDollars = currentDollars
   newCrypto = getCurrencyBalance(config, 'BTC')
@@ -204,12 +204,12 @@ def buyCrypto(config):
   if config["dry_run"] == "false":
     message = "[BUY Crypto successful]\n"
     message += "Summary\n"
-    message += "tradePrice = " + str(tradePrice) + "\n"
+    message += "tradeRealPrice = " + str(tradeRealPrice) + "\n"
     message += "oldDollars = " + str(oldDollars) + "\n"
     message += "newCrypto = " + str(newCrypto) + "\n"
     log.info(message)
     sendMessage(config, message)
-  return tradePrice
+  return tradeRealPrice
 
 def sellCrypto(config):
   log = config["log"]
@@ -269,9 +269,9 @@ def sellCrypto(config):
         newCrypto = getCurrencyBalance(config, 'BTC')
         time.sleep(5)
 
-    tradePrice = getTradePrice(config, order_status)
+    tradeRealPrice = getTradeRealPrice(config, order_status)
   else:
-    tradePrice = -11
+    tradeRealPrice = -11
 
   oldCrypto = currentCrypto
   newDollars = getCurrencyBalance(config, 'USDT')
@@ -279,9 +279,9 @@ def sellCrypto(config):
   if config["dry_run"] == "false":
     message = "[SELL Crypto successful]\n"
     message += "Summary\n"
-    message += "tradePrice = " + str(tradePrice) + "\n"
+    message += "tradeRealPrice = " + str(tradeRealPrice) + "\n"
     message += "newDollars = " + str(newDollars) + "\n"
     message += "oldCrypto = " + str(oldCrypto) + "\n"
     log.info(message)
     sendMessage(config, message)
-  return tradePrice
+  return tradeRealPrice
