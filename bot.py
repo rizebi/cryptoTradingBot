@@ -255,6 +255,7 @@ def trade(config):
       aquisitionDiffPrice = currentRealPrice - tradeRealPrice
       peakDiffPrice = currentAggregatedPrice - maximumAggregatedPrice
       peakIndex = peakDiffPrice / maximumAggregatedPrice
+      log.info("aquisitionDiffPrice = " + str(aquisitionDiffPrice))
       log.info("peakDiffPrice = " + str(peakDiffPrice))
       log.info("peakIndex = " + str('{:.10f}'.format(peakIndex)))
       log.info("peakIndexTreshold = " + str('{:.10f}'.format(peakIndexTreshold)))
