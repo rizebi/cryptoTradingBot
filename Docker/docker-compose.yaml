@@ -25,7 +25,7 @@ services:
 
   browser:
     image: ebieusebiu/crypto
-    container_name: bot
+    container_name: browser
     restart: unless-stopped
     environment:
       - TZ=Europe/Bucharest
