@@ -3,3 +3,6 @@ configuration.cfg
 Drafts/database.db
 Drafts/commands
 /logs/
+index.html
+plot.png
+/templates/

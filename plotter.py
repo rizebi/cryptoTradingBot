@@ -2,6 +2,7 @@
 import os
 import sys
 import time # for sleep
+import mpld3 # for WEB rendering of plots
 import sqlite3 # for database connection
 import logging # for logging
 import datetime # for logging
@@ -45,11 +46,17 @@ def getPrices(log, coin):
   databaseCursor.execute(query)
   pricesX = []
   pricesY = []
+  maximumPrice = 0
+  minimumPrice = 100000000
   for entry in databaseCursor.fetchall():
     #pricesList.append((entry[0], entry[1]))
     pricesX.append(datetime.datetime.fromtimestamp(int(entry[0])))
     pricesY.append(float(entry[1]))
-  return pricesX, pricesY
+    if float(entry[1]) > maximumPrice:
+      maximumPrice = float(entry[1])
+    if float(entry[1]) < minimumPrice:
+      minimumPrice = float(entry[1])
+  return pricesX, pricesY, minimumPrice, maximumPrice
 
 def getTrades(log, coin):
   log = config["log"]
@@ -70,13 +77,19 @@ def getTrades(log, coin):
 def plot(config):
   log = config["log"]
   coin = "BTCUSDT"
-  pricesX, pricesY = getPrices(config, coin)
+  pricesX, pricesY, minimumPrice, maximumPrice = getPrices(config, coin)
   buyTrades, sellTrades = getTrades(config, coin)
 
   log.info("len(pricesX) = " + str(len(pricesX)))
   log.info("len(pricesY) = " + str(len(pricesY)))
+  log.info("minimumPrice = " + str(minimumPrice))
+  log.info("maximumPrice = " + str(maximumPrice))
   log.info("len(buyTrades) = " + str(len(buyTrades)))
   log.info("len(sellTrades) = " + str(len(sellTrades)))
+
+  #Create the Python figure
+  #Set the size of the matplotlib canvas
+  fig = plt.figure(figsize = (18,8))
 
   # Details
   plt.title("Bot Trade History")
@@ -86,17 +99,30 @@ def plot(config):
   # Plot prices
   plt.plot(pricesX, pricesY)
 
+  minimumY = minimumPrice - 0.01 * minimumPrice
+  maximumY = maximumPrice + 0.01 * maximumPrice
+
   # Plot buy trades
   for trade in buyTrades:
-    plt.axvline(x=trade, color='g')
-
+    #plt.axvline(x=trade, color='g') # Problem when redering as HTML
+    plt.plot((trade, trade), (minimumY, maximumY), color='g')
   # Plot sell trades
   for trade in sellTrades:
-    plt.axvline(x=trade, color='r')
+    #plt.axvline(x=trade, color='r') # Problem when redering as HTML
+    plt.plot((trade, trade), (minimumY, maximumY), color='r')
+
+  # Create "templates" directory (needed by Flask)
+  if not os.path.isdir(os.path.join(currentDir, "templates")):
+    os.mkdir(os.path.join(currentDir, "templates"))
+
+  html_str = mpld3.fig_to_html(fig)
+  Html_file= open(os.path.join("templates", "index.html"),"w")
+  Html_file.write(html_str)
+  Html_file.close()
 
   # Show plot
-  #plt.savefig('bank_data.png')
-  plt.show()
+  #plt.savefig('plot.png') # Maybe needed
+  #plt.show()
 
 def mainFunction():
   log = getLogger()
@@ -129,6 +155,8 @@ def mainFunction():
 
     config["databaseClient"] = databaseClient
     config["log"] = log
+
+    # Construct plot
     plot(config)
 
   ##### END #####
