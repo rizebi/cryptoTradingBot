@@ -95,6 +95,12 @@ def plot(config):
   plt.title("Bot Trade History")
   plt.ylabel("BTC Price")
   plt.xlabel("Date")
+  # Show axes in both sides
+  ax = fig.add_subplot(111)
+  ax.yaxis.set_ticks_position('both')
+  ax.tick_params(labeltop=False, labelright=True)
+  # Show grid
+  plt.grid(color='g', linestyle='-', linewidth=0.3)
 
   # Plot prices
   plt.plot(pricesX, pricesY)
@@ -105,11 +111,11 @@ def plot(config):
   # Plot buy trades
   for trade in buyTrades:
     #plt.axvline(x=trade, color='g') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='g')
+    plt.plot((trade, trade), (minimumY, maximumY), color='g', linewidth=2)
   # Plot sell trades
   for trade in sellTrades:
     #plt.axvline(x=trade, color='r') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='r')
+    plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=2)
 
   # Create "templates" directory (needed by Flask)
   if not os.path.isdir(os.path.join(currentDir, "templates")):
@@ -122,7 +128,7 @@ def plot(config):
 
   # Show plot
   #plt.savefig('plot.png') # Maybe needed
-  #plt.show()
+  plt.show()
 
 def mainFunction():
   log = getLogger()
