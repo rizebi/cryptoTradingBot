@@ -1,6 +1,7 @@
 ./idea/
 configuration.cfg
-Drafts/database.db
+Drafts/database*
+Drafts/dataset*
 Drafts/commands
 /logs/
 index.html

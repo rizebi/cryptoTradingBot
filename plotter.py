@@ -37,7 +37,7 @@ def getLogger():
   log = logging.getLogger()
   return log
 
-def getPrices(log, coin):
+def getPricesFromDatabase(config, coin):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
@@ -58,7 +58,42 @@ def getPrices(log, coin):
       minimumPrice = float(entry[1])
   return pricesX, pricesY, minimumPrice, maximumPrice
 
-def getTrades(log, coin):
+# For dry_run
+def getPricesFromFile(config, coin):
+  log = config["log"]
+
+  ### Reads datapoints
+  data = open(config["backtest_file"], "r")
+  data = data.read().split("\n")[0:-1]
+
+  # Sanitize data
+  dataPoints = []
+  for element in data:
+    if "nan" in element.lower():
+      continue
+    if len(element.split(",")) > 1:
+      dataPoints.append(float(element.split(",")[1]))
+    else:
+      dataPoints.append(float(element))
+
+  i = 0
+  pricesX = []
+  pricesY = []
+  maximumPrice = 0
+  minimumPrice = 100000000
+  while i < len(dataPoints) - 1:
+    i += 1
+    pricesX.append(i)
+    pricesY.append(dataPoints[i])
+    if dataPoints[i] > maximumPrice:
+      maximumPrice = dataPoints[i]
+    if dataPoints[i] < minimumPrice:
+      minimumPrice = dataPoints[i]
+
+  return pricesX, pricesY, minimumPrice, maximumPrice
+
+
+def getTrades(config, coin):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
@@ -68,16 +103,26 @@ def getTrades(log, coin):
   buyTrades = []
   sellTrades = []
   for entry in databaseCursor.fetchall():
-    if entry[1] == "BUY":
-      buyTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
+    if config["dry_run"] == "false":
+      if entry[1] == "BUY":
+        buyTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
+      else:
+        sellTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
     else:
-      sellTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
+      if entry[1] == "BUY":
+        buyTrades.append(int(entry[0]))
+      else:
+        sellTrades.append(int(entry[0]))
   return buyTrades, sellTrades
 
 def plot(config):
   log = config["log"]
   coin = "BTCUSDT"
-  pricesX, pricesY, minimumPrice, maximumPrice = getPrices(config, coin)
+  if config["dry_run"] == "false":
+    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromDatabase(config, coin)
+  else:
+    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromFile(config, coin)
+
   buyTrades, sellTrades = getTrades(config, coin)
 
   log.info("len(pricesX) = " + str(len(pricesX)))
@@ -130,7 +175,11 @@ def plot(config):
 
   # Show plot
   #plt.savefig('plot.png') # Maybe needed
-  #plt.show()
+  # plt.show()
+  if config["dry_run"] == "true":
+    log.info("########")
+    log.info("You can see the plot at:")
+    log.info("file://" + os.path.join(currentDir, "templates", "index.html"))
 
 def mainFunction():
   log = getLogger()

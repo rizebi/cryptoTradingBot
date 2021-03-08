@@ -184,6 +184,7 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
   if action == "SELL":
     query = "SELECT tradeRealPrice, cryptoQuantity from trade_history WHERE coin = '" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')"
 
+    # TODO. Aici ar trebui sa se calculeze mai corect. Nu cu 0.001. Si diferentiat intre dry_run si non dry_run
     databaseCursor.execute(query)
     dataPointsObj = databaseCursor.fetchall()
     oldDollars = dataPointsObj[0][0] * dataPointsObj[0][1]

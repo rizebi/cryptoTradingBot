@@ -218,7 +218,19 @@ def trade(config):
     realHistory, aggregatedHistory = constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns)
     if len(realHistory) == 0:
       if config["dry_run"] == "true" and runOnce == True:
-        log.info("Backtesting ended. Exiting.")
+        log.info("####################")
+        log.info("Backtesting ended. Statistics:")
+        log.info("currentRealPrice = " + str(currentRealPrice))
+        log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
+        log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
+        log.info("tradeRealPrice = " + str(tradeRealPrice))
+        log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
+        if doWeHaveCrypto == True:
+          log.info("currentDollars = " + str(cryptoQuantity * tradeRealPrice))
+          log.info("cryptoQuantity = " + str(0))
+        else:
+          log.info("currentDollars = " + str(currentDollars))
+          log.info("cryptoQuantity = " + str(cryptoQuantity))
         sys.exit(0)
       log.info("Too few data to aggregate")
       time.sleep(timeBetweenRuns)
