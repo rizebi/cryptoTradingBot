@@ -97,13 +97,15 @@ def plot(config):
   plt.xlabel("Date")
   # Show axes in both sides
   ax = fig.add_subplot(111)
+  ax.yaxis.tick_right() # This breaks for manual plot, but for API it puts ok the scale on the right
   ax.yaxis.set_ticks_position('both')
   ax.tick_params(labeltop=False, labelright=True)
+
   # Show grid
-  plt.grid(color='g', linestyle='-', linewidth=0.3)
+  plt.grid(color='grey', linestyle='-', linewidth=0.3)
 
   # Plot prices
-  plt.plot(pricesX, pricesY)
+  plt.plot(pricesX, pricesY, linewidth=3)
 
   minimumY = minimumPrice - 0.01 * minimumPrice
   maximumY = maximumPrice + 0.01 * maximumPrice
@@ -111,11 +113,11 @@ def plot(config):
   # Plot buy trades
   for trade in buyTrades:
     #plt.axvline(x=trade, color='g') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='g', linewidth=2)
+    plt.plot((trade, trade), (minimumY, maximumY), color='g', linewidth=3)
   # Plot sell trades
   for trade in sellTrades:
     #plt.axvline(x=trade, color='r') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=2)
+    plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
 
   # Create "templates" directory (needed by Flask)
   if not os.path.isdir(os.path.join(currentDir, "templates")):
@@ -128,7 +130,7 @@ def plot(config):
 
   # Show plot
   #plt.savefig('plot.png') # Maybe needed
-  plt.show()
+  #plt.show()
 
 def mainFunction():
   log = getLogger()
