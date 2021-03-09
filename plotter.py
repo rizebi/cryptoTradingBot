@@ -42,7 +42,7 @@ def getPricesFromDatabase(config, coin, startTime):
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
 
-  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' WHERE timestamp > " + startTime
+  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' WHERE timestamp > " + str(startTime)
   databaseCursor.execute(query)
   pricesX = []
   pricesY = []
@@ -99,7 +99,7 @@ def getTrades(config, coin, startTime):
   databaseCursor = databaseClient.cursor()
 
   if config["dry_run"] == "false":
-    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "' WHERE timestamp > " + startTime
+    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "' WHERE timestamp > " + str(startTime)
   else:
     # dry_run does not know about timestamp
     query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "'"
@@ -184,7 +184,7 @@ def plot(config, outputFileName, startTime):
   if config["dry_run"] == "true":
     log.info("########")
     log.info("You can see the plot at:")
-    log.info("file://" + os.path.join(currentDir, "templates", "index.html"))
+    log.info("file://" + os.path.join(currentDir, "templates", outputFileName))
 
 def mainFunction(outputFileName, startTime):
   log = getLogger()
