@@ -63,7 +63,7 @@ def history7d():
     return render_template('index7d.html')
 
 @app.route('/30d')
-def history7d():
+def history30d():
     currentTime = time.time()
     wantedTime = time.time() - (30 * 24 * 60 * 60)
     # Create plot
