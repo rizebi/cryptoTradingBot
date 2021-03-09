@@ -37,12 +37,12 @@ def getLogger():
   log = logging.getLogger()
   return log
 
-def getPricesFromDatabase(config, coin):
+def getPricesFromDatabase(config, coin, startTime):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
 
-  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "'"
+  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' WHERE timestamp > " + startTime
   databaseCursor.execute(query)
   pricesX = []
   pricesY = []
@@ -59,7 +59,7 @@ def getPricesFromDatabase(config, coin):
   return pricesX, pricesY, minimumPrice, maximumPrice
 
 # For dry_run
-def getPricesFromFile(config, coin):
+def getPricesFromFile(config, coin, startTime):
   log = config["log"]
 
   ### Reads datapoints
@@ -93,12 +93,17 @@ def getPricesFromFile(config, coin):
   return pricesX, pricesY, minimumPrice, maximumPrice
 
 
-def getTrades(config, coin):
+def getTrades(config, coin, startTime):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
 
-  query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "'"
+  if config["dry_run"] == "false":
+    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "' WHERE timestamp > " + startTime
+  else:
+    # dry_run does not know about timestamp
+    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "'"
+
   databaseCursor.execute(query)
   buyTrades = []
   sellTrades = []
@@ -115,15 +120,15 @@ def getTrades(config, coin):
         sellTrades.append(int(entry[0]))
   return buyTrades, sellTrades
 
-def plot(config):
+def plot(config, outputFileName, startTime):
   log = config["log"]
   coin = "BTCUSDT"
   if config["dry_run"] == "false":
-    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromDatabase(config, coin)
+    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromDatabase(config, coin, startTime)
   else:
-    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromFile(config, coin)
+    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromFile(config, coin, startTime)
 
-  buyTrades, sellTrades = getTrades(config, coin)
+  buyTrades, sellTrades = getTrades(config, coin, startTime)
 
   log.info("len(pricesX) = " + str(len(pricesX)))
   log.info("len(pricesY) = " + str(len(pricesY)))
@@ -169,7 +174,7 @@ def plot(config):
     os.mkdir(os.path.join(currentDir, "templates"))
 
   html_str = mpld3.fig_to_html(fig)
-  Html_file= open(os.path.join("templates", "index.html"),"w")
+  Html_file= open(os.path.join("templates", outputFileName),"w")
   Html_file.write(html_str)
   Html_file.close()
 
@@ -181,7 +186,7 @@ def plot(config):
     log.info("You can see the plot at:")
     log.info("file://" + os.path.join(currentDir, "templates", "index.html"))
 
-def mainFunction():
+def mainFunction(outputFileName, startTime):
   log = getLogger()
   log.info("################################# New run")
   try:
@@ -214,7 +219,7 @@ def mainFunction():
     config["log"] = log
 
     # Construct plot
-    plot(config)
+    plot(config, outputFileName, int(startTime))
 
   ##### END #####
   except KeyboardInterrupt:
@@ -229,8 +234,8 @@ def mainFunction():
 ##### BODY #####
 if __name__ == "__main__":
 
-  if len(sys.argv) != 1:
-    log.info("Wrong number of parameters. Use: python plotter.py")
+  if len(sys.argv) != 3:
+    print ("Wrong number of parameters. Use: python plotter.py <outputFileName> <startTime>")
     sys.exit(99)
   else:
-    mainFunction()
+    mainFunction(sys.argv[1], sys.argv[2])
