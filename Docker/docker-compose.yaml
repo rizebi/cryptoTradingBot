@@ -23,9 +23,9 @@ services:
     volumes:
       - /docker/myprecious/:/app/
 
-  browser:
+  webserver:
     image: ebieusebiu/crypto
-    container_name: browser
+    container_name: webserver
     restart: unless-stopped
     environment:
       - TZ=Europe/Bucharest

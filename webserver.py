@@ -27,11 +27,11 @@ def historyFull():
     return render_template('index0.html')
 
 @app.route('/3h')
-def history6h():
+def history3h():
     currentTime = time.time()
     wantedTime = time.time() - (3 * 60 * 60)
     # Create plot
-    output = executeCommand("python3 plotter.py index6h.html " + str(wantedTime))
+    output = executeCommand("python3 plotter.py index3h.html " + str(wantedTime))
     # Return plot
     return render_template('index3h.html')
 
