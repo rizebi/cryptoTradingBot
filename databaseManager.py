@@ -131,10 +131,20 @@ def getMaximumPriceAfterLastTransactionFromDatabase(config, lastBuyingTimestamp)
   suma = 0
   i = startIndex - 1
   lenSuma = 0
+  # TODO check for index out of range
   while i < endIndex:
     i += 1
-    suma += pricesList[i]
-    lenSuma += 1
+    if i < len(pricesList):
+      suma += pricesList[i]
+      lenSuma += 1
+    else:
+      message = "[DEBUG] We encountered index out of range in getMaximumPriceAfterLastTransactionFromDatabase when calculating averageMaximum.\n"
+      message += "startIndex = " + str(startIndex) + "\n"
+      message += "endIndex = " + str(endIndex) + "\n"
+      message += "i = " + str(i) + "\n"
+      message += "len(pricesList) = " + str(len(pricesList)) + "\n"
+      message += "lenSuma = " + str(lenSuma) + "\n"
+      sendMessage(config, message)
 
   maximumAggregatedPrice = suma / lenSuma
   return maximumPrice, maximumAggregatedPrice
@@ -166,10 +176,23 @@ def getMaximumPriceAfterLastTransactionFromFile(config, lastBuyingTimestamp):
   suma = 0
   i = startIndex - 1
   lenSuma = 0
+  # TODO check for index out of range
   while i < endIndex:
     i += 1
     suma += config["dataPoints"][i]
     lenSuma += 1
+
+    if i < len(config["dataPoints"]):
+      suma += config["dataPoints"][i]
+      lenSuma += 1
+    else:
+      message = "[DEBUG] We encountered index out of range in getMaximumPriceAfterLastTransactionFromDatabase when calculating averageMaximum.\n"
+      message += "startIndex = " + str(startIndex) + "\n"
+      message += "endIndex = " + str(endIndex) + "\n"
+      message += "i = " + str(i) + "\n"
+      message += "len(config['dataPoints']) = " + str(len(config["dataPoints"])) + "\n"
+      message += "lenSuma = " + str(lenSuma) + "\n"
+      sendMessage(config, message)
 
   maximumAggregatedPrice = suma / lenSuma
   return maximumPrice, maximumAggregatedPrice

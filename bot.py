@@ -204,6 +204,9 @@ def trade(config):
   if config["dry_run"] == "true":
     emptyTradeHistoryDatabase(config)
     readDataFromFile(config)
+    # For dry run do not create all the time the binanceClient
+    binanceClient = Client(config["api_key"], config["api_secret_key"])
+    config["binanceClient"] = binanceClient
   while True:
     # Update logger handler
     log = getLogger()
@@ -211,8 +214,9 @@ def trade(config):
     currentTime = int(time.time())
 
     # Get Binance Client everytime, because after some time it may behave wrong
-    binanceClient = Client(config["api_key"], config["api_secret_key"])
-    config["binanceClient"] = binanceClient
+    if config["dry_run"] == "false":
+      binanceClient = Client(config["api_key"], config["api_secret_key"])
+      config["binanceClient"] = binanceClient
 
     config["currentDatapoint"] += 1
     if config["dry_run"] == "false":
