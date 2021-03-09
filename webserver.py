@@ -29,7 +29,7 @@ def historyFull():
 @app.route('/3h')
 def history3h():
     currentTime = time.time()
-    wantedTime = time.time() - (3 * 60 * 60)
+    wantedTime = int(time.time() - (3 * 60 * 60))
     # Create plot
     output = executeCommand("python3 plotter.py index3h.html " + str(wantedTime))
     # Return plot
@@ -38,7 +38,7 @@ def history3h():
 @app.route('/6h')
 def history6h():
     currentTime = time.time()
-    wantedTime = time.time() - (6 * 60 * 60)
+    wantedTime = int(time.time() - (6 * 60 * 60))
     # Create plot
     output = executeCommand("python3 plotter.py index6h.html " + str(wantedTime))
     # Return plot
@@ -47,7 +47,7 @@ def history6h():
 @app.route('/24h')
 def history24h():
     currentTime = time.time()
-    wantedTime = time.time() - (24 * 60 * 60)
+    wantedTime = int(time.time() - (24 * 60 * 60))
     # Create plot
     output = executeCommand("python3 plotter.py index24h.html " + str(wantedTime))
     # Return plot
@@ -56,7 +56,7 @@ def history24h():
 @app.route('/7d')
 def history7d():
     currentTime = time.time()
-    wantedTime = time.time() - (7 * 24 * 60 * 60)
+    wantedTime = int(time.time() - (7 * 24 * 60 * 60))
     # Create plot
     output = executeCommand("python3 plotter.py index7d.html " + str(wantedTime))
     # Return plot
@@ -65,7 +65,7 @@ def history7d():
 @app.route('/30d')
 def history30d():
     currentTime = time.time()
-    wantedTime = time.time() - (30 * 24 * 60 * 60)
+    wantedTime = int(time.time() - (30 * 24 * 60 * 60))
     # Create plot
     output = executeCommand("python3 plotter.py index30d.html " + str(wantedTime))
     # Return plot
