@@ -22,6 +22,7 @@ from databaseManager import getPriceHistoryFromFile
 from databaseManager import getLastTransactionStatus
 from databaseManager import insertTradeHistory
 from databaseManager import emptyTradeHistoryDatabase
+from databaseManager import arePricesGoingUp
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
@@ -110,6 +111,7 @@ def constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenR
 # Function that makes the trades
 def trade(config):
   log = config["log"]
+
   # Function that is called when a buy trade should be made
   def buyHandler(config, currentDollars, cryptoQuantity):
     log = config["log"]
@@ -289,6 +291,14 @@ def trade(config):
         continue
       else:
         # SELL strategy 1
+        # If the real prices (not aggregated) are in a positive trend, do not sell
+        if arePricesGoingUp(config, coin) == True:
+          log.info("KEEP. peakIndex is negative, but current trend is positive.")
+          time.sleep(timeBetweenRuns)
+          continue
+        else:
+          log.info("Realtime trend is down. If we exceeded treshold, we will sell")
+
         # peakIndex < 0
         if peakIndex < (-1) * peakIndexTreshold:
           if config["dry_run"] == "false":

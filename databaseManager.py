@@ -226,3 +226,44 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
     message = "[ERROR] When saving scraping in the database: " + str(e)
     log.info(message)
     sendMessage(config, message)
+
+def arePricesGoingUp(config, coin):
+  log = config["log"]
+  databaseClient = config["databaseClient"]
+  databaseCursor = databaseClient.cursor()
+  sellPeakLookbackPositive = int(config["sell_peak_lookback_positive"])
+
+  if config["dry_run"] == "true":
+    # From file
+    currentDatapoint = config["currentDatapoint"]
+    # The commented 3 lines are for average
+    #currentRealPrice = config["dataPoints"][currentDatapoint - 1]
+    #averagePrice = sum(config["dataPoints"][currentDatapoint - sellPeakLookbackPositive: currentDatapoint]) / sellPeakLookbackPositive
+    #return currentRealPrice >= averagePrice
+    i = currentDatapoint - sellPeakLookbackPositive
+    while i < currentDatapoint - 1:
+      i += 1
+      if config["dataPoints"][i - 1] > config["dataPoints"][i]:
+        return False
+
+    return True
+
+  else:
+    # TODO Average or Ascending? 3 or 5?
+    # From database
+    databaseCursor.execute("SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(sellPeakLookbackPositive))
+    dataPointsObj = databaseCursor.fetchall()
+    dataPointsObj.reverse()
+    dataPoints = []
+    for price in dataPointsObj:
+      dataPoints.append(price[0])
+    # The commented 3 lines are for average
+    #currentRealPrice = dataPoints[-1]
+    #averagePrice = sum(dataPoints) / sellPeakLookbackPositive
+    #return currentRealPrice >= averagePrice
+    i = 0
+    while i < len(dataPoints):
+      i += 1
+      if dataPoints[i - 1] > dataPoints[i]:
+        return False
+    return True
