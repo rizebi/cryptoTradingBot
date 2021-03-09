@@ -103,10 +103,12 @@ def savePriceInDatabase(log, currentTime, coin, currentPrice):
 # The function should never end, that scrape, and write in the database
 def scrape(log):
   log.info("Starting scraping.")
-  client = Client(config["api_key"], config["api_secret_key"])
   while True:
     # Update logger handler
     log = getLogger()
+
+    # Get Binance Client everytime, because after some time it may behave wrong
+    client = Client(config["api_key"], config["api_secret_key"])
 
     startTime = time.time()
     for coin in config["coins_to_scrape"].split("|"):

@@ -209,6 +209,11 @@ def trade(config):
     log = getLogger()
     config["log"] = log
     currentTime = int(time.time())
+
+    # Get Binance Client everytime, because after some time it may behave wrong
+    binanceClient = Client(config["api_key"], config["api_secret_key"])
+    config["binanceClient"] = binanceClient
+
     config["currentDatapoint"] += 1
     if config["dry_run"] == "false":
       log.info("[Datapoint " + str(currentTime) + "] ######################################################")
@@ -415,10 +420,6 @@ def mainFunction():
     config["databaseClient"] = databaseClient
     # Create table if it not exists
     createTables(config)
-
-    # Get Binance client
-    binanceClient = Client(config["api_key"], config["api_secret_key"])
-    config["binanceClient"] = binanceClient
 
     # The function should never end, that scrape, and write in the database
     trade(config)
