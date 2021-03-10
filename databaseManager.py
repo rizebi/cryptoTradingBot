@@ -262,8 +262,13 @@ def arePricesGoingUp(config, coin):
     #averagePrice = sum(dataPoints) / sellPeakLookbackPositive
     #return currentRealPrice >= averagePrice
     i = 0
+    log.info("len(dataPoints) = " + str(len(dataPoints)))
+    log.info("dataPoints = " + str(dataPoints))
     while i < len(dataPoints):
       i += 1
+      log.info("i = " + str(i))
       if dataPoints[i - 1] > dataPoints[i]:
+        log.info("Returning False")
         return False
+    log.info("Returning True")
     return True
