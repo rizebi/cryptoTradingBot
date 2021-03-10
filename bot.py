@@ -310,10 +310,11 @@ def trade(config):
 
         # This protects us from bot restarts. If maximum was long time ago, but the market is growing, that's it. We missed it.
         # At least do not sell only to want to buy back.
-        if averagelookBackIntervalsDatapointsIndex > 0 and averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTreshold:
-          log.info("KEEP. Maybe we should have sold, but the buying strategy tells to buy if we did not have crypto")
-          time.sleep(timeBetweenRuns)
-          continue
+        # TODO, backtest!!!
+        #if averagelookBackIntervalsDatapointsIndex > 0:
+        #  log.info("KEEP. Maybe we should have sold, but the buying strategy tells to buy if we did not have crypto")
+        #  time.sleep(timeBetweenRuns)
+        #  continue
 
         # peakIndex < 0
         if peakIndex < (-1) * peakIndexTreshold:
