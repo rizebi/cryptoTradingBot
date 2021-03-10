@@ -259,6 +259,13 @@ def trade(config):
     maximumPrice = status["maximumPrice"]
     maximumAggregatedPrice = status["maximumAggregatedPrice"]
 
+    # Log the minutes since last trades
+    if config["dry_run"] == "false":
+      minutesSinceLastTrade = int((currentTime - lastTradeTimestamp) / 60)
+    else:
+      minutesSinceLastTrade = int(config["currentDatapoint"] - lastTradeTimestamp)
+    log.info("minutesSinceLastTrade = " + str(minutesSinceLastTrade))
+
     # Now the logic comes. To buy, to wait, to sell
     currentRealPrice = realHistory[-1]
     currentAggregatedPrice = aggregatedHistory[-1]
