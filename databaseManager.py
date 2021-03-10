@@ -227,22 +227,25 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
     log.info(message)
     sendMessage(config, message)
 
-def arePricesGoingUp(config, coin):
+# tradeMethod is BUY or SELL in order to choose the right parameter
+def arePricesGoingUp(config, coin, tradeMethod):
   log = config["log"]
   databaseClient = config["databaseClient"]
   # We do all of this in a try because in case of any error, the bot will not sell. So will return False if any error in order to not disturb functionality
   try:
     databaseCursor = databaseClient.cursor()
-    sellPeakLookbackPositive = int(config["sell_peak_lookback_positive"])
-
+    if tradeMethod == "BUY":
+      trendLookbackIntervals = int(config["trend_direction_buy_intervals"])
+    else:
+      trendLookbackIntervals = int(config["trend_direction_sell_intervals"])
     if config["dry_run"] == "true":
       # From file
       currentDatapoint = config["currentDatapoint"]
       # The commented 3 lines are for average
       #currentRealPrice = config["dataPoints"][currentDatapoint - 1]
-      #averagePrice = sum(config["dataPoints"][currentDatapoint - sellPeakLookbackPositive: currentDatapoint]) / sellPeakLookbackPositive
+      #averagePrice = sum(config["dataPoints"][currentDatapoint - trendLookbackIntervals: currentDatapoint]) / trendLookbackIntervals
       #return currentRealPrice >= averagePrice
-      i = currentDatapoint - sellPeakLookbackPositive
+      i = currentDatapoint - trendLookbackIntervals
       while i < currentDatapoint - 1:
         i += 1
         if config["dataPoints"][i - 1] > config["dataPoints"][i]:
@@ -251,7 +254,7 @@ def arePricesGoingUp(config, coin):
       return True
 
     else:
-      query = "SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(sellPeakLookbackPositive)
+      query = "SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(trendLookbackIntervals)
       databaseCursor.execute(query)
       dataPointsObj = databaseCursor.fetchall()
       dataPointsObj.reverse()
@@ -260,7 +263,7 @@ def arePricesGoingUp(config, coin):
         dataPoints.append(price[0])
       # The commented 3 lines are for average
       #currentRealPrice = dataPoints[-1]
-      #averagePrice = sum(dataPoints) / sellPeakLookbackPositive
+      #averagePrice = sum(dataPoints) / trendLookbackIntervals
       #return currentRealPrice >= averagePrice
       i = 0
       while i < len(dataPoints) - 1:

@@ -300,7 +300,7 @@ def trade(config):
         continue
       else:
         # If the real prices (not aggregated) are in a positive trend, do not sell
-        if arePricesGoingUp(config, coin) == True:
+        if arePricesGoingUp(config, coin, "SELL") == True:
           log.info("KEEP. peakIndex is negative, but current trend is positive.")
           time.sleep(timeBetweenRuns)
           continue
@@ -378,13 +378,13 @@ def trade(config):
       # Should we buy?
 
       # BUY Strategy 1 (buy if averagelookBackIntervalsDatapointsIndex > lastlookBackIntervalsIndexTreshold)
-      if averagelookBackIntervalsDatapointsIndex < 0 or arePricesGoingUp(config, coin) == False:
-        log.info("Market going down. Keep waiting.")
+      if averagelookBackIntervalsDatapointsIndex < 0 or arePricesGoingUp(config, coin, "BUY") == False:
+        log.info("WAIT. Do not buy. Market going down")
         time.sleep(timeBetweenRuns)
         continue
       else:
         if averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTreshold:
-          log.info("Too little increase. Not buying. Keep waiting.")
+          log.info("WAIT. Do not buy. Too little increase.")
           time.sleep(timeBetweenRuns)
           continue
         else:
