@@ -230,28 +230,27 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
 def arePricesGoingUp(config, coin):
   log = config["log"]
   databaseClient = config["databaseClient"]
-  databaseCursor = databaseClient.cursor()
-  sellPeakLookbackPositive = int(config["sell_peak_lookback_positive"])
+  # We do all of this in a try because in case of any error, the bot will not sell. So will return False if any error in order to not disturb functionality
+  try:
+    databaseCursor = databaseClient.cursor()
+    sellPeakLookbackPositive = int(config["sell_peak_lookback_positive"])
 
-  if config["dry_run"] == "true":
-    # From file
-    currentDatapoint = config["currentDatapoint"]
-    # The commented 3 lines are for average
-    #currentRealPrice = config["dataPoints"][currentDatapoint - 1]
-    #averagePrice = sum(config["dataPoints"][currentDatapoint - sellPeakLookbackPositive: currentDatapoint]) / sellPeakLookbackPositive
-    #return currentRealPrice >= averagePrice
-    i = currentDatapoint - sellPeakLookbackPositive
-    while i < currentDatapoint - 1:
-      i += 1
-      if config["dataPoints"][i - 1] > config["dataPoints"][i]:
-        return False
+    if config["dry_run"] == "true":
+      # From file
+      currentDatapoint = config["currentDatapoint"]
+      # The commented 3 lines are for average
+      #currentRealPrice = config["dataPoints"][currentDatapoint - 1]
+      #averagePrice = sum(config["dataPoints"][currentDatapoint - sellPeakLookbackPositive: currentDatapoint]) / sellPeakLookbackPositive
+      #return currentRealPrice >= averagePrice
+      i = currentDatapoint - sellPeakLookbackPositive
+      while i < currentDatapoint - 1:
+        i += 1
+        if config["dataPoints"][i - 1] > config["dataPoints"][i]:
+          return False
 
-    return True
+      return True
 
-  else:
-    # TODO Average or Ascending? 3 or 5?
-    # From database
-    try: # TODO DEBUG
+    else:
       query = "SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(sellPeakLookbackPositive)
       databaseCursor.execute(query)
       dataPointsObj = databaseCursor.fetchall()
@@ -266,7 +265,6 @@ def arePricesGoingUp(config, coin):
       i = 0
       while i < len(dataPoints) - 1:
         i += 1
-        log.info("i = " + str(i))
         if dataPoints[i - 1] > dataPoints[i]:
           return False
       return True
