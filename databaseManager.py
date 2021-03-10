@@ -251,24 +251,33 @@ def arePricesGoingUp(config, coin):
   else:
     # TODO Average or Ascending? 3 or 5?
     # From database
-    databaseCursor.execute("SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(sellPeakLookbackPositive))
-    dataPointsObj = databaseCursor.fetchall()
-    dataPointsObj.reverse()
-    dataPoints = []
-    for price in dataPointsObj:
-      dataPoints.append(price[0])
-    # The commented 3 lines are for average
-    #currentRealPrice = dataPoints[-1]
-    #averagePrice = sum(dataPoints) / sellPeakLookbackPositive
-    #return currentRealPrice >= averagePrice
-    i = 0
-    log.info("len(dataPoints) = " + str(len(dataPoints)))
-    log.info("dataPoints = " + str(dataPoints))
-    while i < len(dataPoints):
-      i += 1
-      log.info("i = " + str(i))
-      if dataPoints[i - 1] > dataPoints[i]:
-        log.info("Returning False")
-        return False
-    log.info("Returning True")
-    return True
+    try: # TODO DEBUG
+      query = "SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(sellPeakLookbackPositive)
+      log.info(query)
+      databaseCursor.execute(query)
+      dataPointsObj = databaseCursor.fetchall()
+      dataPointsObj.reverse()
+      dataPoints = []
+      for price in dataPointsObj:
+        dataPoints.append(price[0])
+      # The commented 3 lines are for average
+      #currentRealPrice = dataPoints[-1]
+      #averagePrice = sum(dataPoints) / sellPeakLookbackPositive
+      #return currentRealPrice >= averagePrice
+      i = 0
+      log.info("len(dataPoints) = " + str(len(dataPoints)))
+      log.info("dataPoints = " + str(dataPoints))
+      while i < len(dataPoints):
+        i += 1
+        log.info("i = " + str(i))
+        if dataPoints[i - 1] > dataPoints[i]:
+          log.info("Returning False")
+          return False
+      log.info("Returning True")
+      return True
+    except Exception as e:
+      message = "[ERROR] arePricesGoingUp!!!!!! INVESTIGATE"
+      log.info(message)
+      log.info(e)
+      sendMessage(config, message)
+      return False
