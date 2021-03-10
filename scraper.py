@@ -29,7 +29,7 @@ def getLogger():
       print("Successfully created the logs directory")
 
   now = datetime.datetime.now()
-  log_name = "" + str(now.year) + "." + '{:02d}'.format(now.month) + "-scraper.log"
+  log_name = "" + str(now.year) + "." + '{:02d}'.format(now.month) + "." + '{:02d}'.format(now.day) + "-scraper.log"
   log_name = os.path.join(currentDir, "logs", log_name)
   logging.basicConfig(format='%(asctime)s  %(message)s', level=logging.NOTSET,
                       handlers=[
