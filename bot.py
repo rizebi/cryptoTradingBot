@@ -299,7 +299,6 @@ def trade(config):
         time.sleep(timeBetweenRuns)
         continue
       else:
-        # SELL strategy 1
         # If the real prices (not aggregated) are in a positive trend, do not sell
         if arePricesGoingUp(config, coin) == True:
           log.info("KEEP. peakIndex is negative, but current trend is positive.")
@@ -315,6 +314,8 @@ def trade(config):
         #  log.info("KEEP. Maybe we should have sold, but the buying strategy tells to buy if we did not have crypto")
         #  time.sleep(timeBetweenRuns)
         #  continue
+
+        # SELL strategy 1 (sell if exceeded index from peak)
 
         # peakIndex < 0
         if peakIndex < (-1) * peakIndexTreshold:
@@ -350,7 +351,7 @@ def trade(config):
           log.info("Treshold not exceeded. KEEP")
           time.sleep(timeBetweenRuns)
           continue
-      # SELL strategy 2
+      # SELL strategy 2 (sell if currentAggregatedPrice < tradeAggregatedPrice)
       if currentAggregatedPrice < tradeAggregatedPrice:
         if config["dry_run"] == "false":
           cooldownExpression = currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice)
@@ -375,7 +376,9 @@ def trade(config):
     else:
       # We do not have crypto
       # Should we buy?
-      if averagelookBackIntervalsDatapointsIndex < 0:
+
+      # BUY Strategy 1 (buy if averagelookBackIntervalsDatapointsIndex > lastlookBackIntervalsIndexTreshold)
+      if averagelookBackIntervalsDatapointsIndex < 0 or arePricesGoingUp(config, coin) == False:
         log.info("Market going down. Keep waiting.")
         time.sleep(timeBetweenRuns)
         continue
