@@ -267,7 +267,7 @@ def arePricesGoingUp(config, coin):
       i = 0
       log.info("len(dataPoints) = " + str(len(dataPoints)))
       log.info("dataPoints = " + str(dataPoints))
-      while i < len(dataPoints):
+      while i < len(dataPoints) - 1:
         i += 1
         log.info("i = " + str(i))
         if dataPoints[i - 1] > dataPoints[i]:
