@@ -268,9 +268,9 @@ def arePricesGoingUp(config, coin):
         if dataPoints[i - 1] > dataPoints[i]:
           return False
       return True
-    except Exception as e:
-      message = "[ERROR] arePricesGoingUp!!!!!! INVESTIGATE"
-      log.info(message)
-      log.info(e)
-      sendMessage(config, message)
-      return False
+  except Exception as e:
+    message = "[ERROR] arePricesGoingUp!!!!!! INVESTIGATE"
+    log.info(message)
+    log.info(e)
+    sendMessage(config, message)
+    return False
