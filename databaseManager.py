@@ -253,7 +253,6 @@ def arePricesGoingUp(config, coin):
     # From database
     try: # TODO DEBUG
       query = "SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(sellPeakLookbackPositive)
-      log.info(query)
       databaseCursor.execute(query)
       dataPointsObj = databaseCursor.fetchall()
       dataPointsObj.reverse()
@@ -265,15 +264,11 @@ def arePricesGoingUp(config, coin):
       #averagePrice = sum(dataPoints) / sellPeakLookbackPositive
       #return currentRealPrice >= averagePrice
       i = 0
-      log.info("len(dataPoints) = " + str(len(dataPoints)))
-      log.info("dataPoints = " + str(dataPoints))
       while i < len(dataPoints) - 1:
         i += 1
         log.info("i = " + str(i))
         if dataPoints[i - 1] > dataPoints[i]:
-          log.info("Returning False")
           return False
-      log.info("Returning True")
       return True
     except Exception as e:
       message = "[ERROR] arePricesGoingUp!!!!!! INVESTIGATE"
