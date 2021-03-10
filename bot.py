@@ -273,6 +273,15 @@ def trade(config):
       log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
     log.info("aggregatedHistory = " + str(aggregatedHistory))
 
+    # Calculate change in the last lookBackIntervals datapoints
+    averagelookBackIntervalsDataPoints = sum(aggregatedHistory[(-1) * lookBackIntervals:])/lookBackIntervals
+    averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
+    averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
+    log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
+    log.info("averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)))
+    log.info("lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)))
+
+
     if doWeHaveCrypto == True:
       # Calculate peakIndex
       aquisitionDiffPrice = currentRealPrice - tradeRealPrice
@@ -298,6 +307,13 @@ def trade(config):
           continue
         else:
           log.info("Realtime trend is down. If we exceeded treshold, we will sell")
+
+        # This protects us from bot restarts. If maximum was long time ago, but the market is growing, that's it. We missed it.
+        # At least do not sell only to want to buy back.
+        if averagelookBackIntervalsDatapointsIndex > 0 and averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTreshold:
+          log.info("KEEP. Maybe we should have sold, but the buying strategy tells to buy if we did not have crypto")
+          time.sleep(timeBetweenRuns)
+          continue
 
         # peakIndex < 0
         if peakIndex < (-1) * peakIndexTreshold:
@@ -358,14 +374,6 @@ def trade(config):
     else:
       # We do not have crypto
       # Should we buy?
-
-      # Calculate change in the last lookBackIntervals datapoints
-      averagelookBackIntervalsDataPoints = sum(aggregatedHistory[(-1) * lookBackIntervals:])/lookBackIntervals
-      averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
-      averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
-      log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
-      log.info("averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)))
-      log.info("lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)))
       if averagelookBackIntervalsDatapointsIndex < 0:
         log.info("Market going down. Keep waiting.")
         time.sleep(timeBetweenRuns)
