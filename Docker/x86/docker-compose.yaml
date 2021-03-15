@@ -1,0 +1,51 @@
+version: '3'
+services:
+
+  scraper:
+    image: ebieusebiu/crypto:x86
+    container_name: scraper
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Bucharest
+    working_dir: /app
+    command: 'python scraper.py'
+    volumes:
+      - /docker/myprecious/:/app/
+
+  bot:
+    image: ebieusebiu/crypto:x86
+    container_name: bot
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Bucharest
+    working_dir: /app
+    command: 'python bot.py'
+    volumes:
+      - /docker/myprecious/:/app/
+
+  webserver:
+    image: ebieusebiu/crypto:x86
+    container_name: webserver
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Bucharest
+    working_dir: /app
+    command: 'python webserver.py'
+    volumes:
+      - /docker/myprecious/:/app/
+    ports:
+      - 86:5000
+
+  sqlitebrowser:
+    image: ghcr.io/linuxserver/sqlitebrowser
+    container_name: sqlitebrowser
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Bucharest
+    volumes:
+      - /docker/myprecious/data/config:/config
+      - /docker/myprecious/data:/data
+    ports:
+      - 85:3000
