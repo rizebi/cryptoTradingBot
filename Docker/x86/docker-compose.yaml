@@ -34,7 +34,7 @@ services:
     volumes:
       - /docker/myprecious/:/app/
     ports:
-      - 86:5000
+      - 80:5000
 
   sqlitebrowser:
     image: ghcr.io/linuxserver/sqlitebrowser
@@ -48,4 +48,4 @@ services:
       - /docker/myprecious/data/config:/config
       - /docker/myprecious/data:/data
     ports:
-      - 85:3000
+      - 81:3000
