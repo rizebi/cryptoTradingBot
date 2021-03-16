@@ -85,3 +85,36 @@ Otherwise, build the image:
   - docker build -f Docker/Dockerfile -t my-image .
   - update docker-compose.yaml with the new image
   - docker-compose up -d
+
+###Step-by-Step in Docker on EC2 instance
+1) Create new instance, Amazon Linux 2
+
+2) Allow ports 20, 80, 81 to the world. Or better, allow them only to your home IP (and when it changes, update the security of machine accordingly)
+
+3) ssh -i key ec2-user@IP
+
+4) Install dependencies
+yum install -y python3 telnet docker git
+curl -L https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m) -o /usr/bin/docker-compose
+chmod +x /usr/bin/docker-compose
+systemctl enable docker; systemctl start docker
+
+5) Install and configure Git
+add ssh key to github
+vim /root/.ssh/github.priv
+chmod 400 /root/.ssh/github.priv
+vim /root/.ssh/config
+Host github.com
+ User git
+ HostName github.com
+ IdentityFile ~/.ssh/github.priv
+
+6) Get code
+mkdir /docker; cd /docker
+git clone git@github.com:rizebi/myprecious.git
+ln -sfn /docker/myprecious/Docker/x86/docker-compose.yaml /docker/docker-compose.yaml
+
+7) Add config
+vim /docker/myprecious/configuration.cfg
+
+8) cd /docker; docker-compose up -d
