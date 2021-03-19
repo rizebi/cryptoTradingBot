@@ -9,6 +9,7 @@ import datetime # for logging
 import traceback # for error handling
 import configparser # for configuration parser
 import matplotlib.pyplot as plt
+from scipy.ndimage.filters import gaussian_filter1d # for interpolation
 
 ##### Constants #####
 currentDir = os.getcwd()
@@ -168,6 +169,10 @@ def plot(config, outputFileName, startTime):
   for trade in sellTrades:
     #plt.axvline(x=trade, color='r') # Problem when redering as HTML
     plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
+
+  # Plot interpolate
+  pricesYSmoothed = gaussian_filter1d(pricesY, sigma=4)
+  plt.plot(pricesX, pricesYSmoothed, '--', linewidth=3)
 
   # Create "templates" directory (needed by Flask)
   if not os.path.isdir(os.path.join(currentDir, "templates")):

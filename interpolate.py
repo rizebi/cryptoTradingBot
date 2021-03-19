@@ -22,14 +22,14 @@ for element in data:
   else:
     dataPoints.append(float(element))
 
-dataPoints = dataPoints[0:10]
+dataPoints = dataPoints[0:12]
 
 
 x = list(range(len(dataPoints)))
 y = dataPoints
 
 
-ysmoothed = gaussian_filter1d(y, sigma=2)
+ysmoothed = gaussian_filter1d(y, sigma=3)
 plt.plot(x, y, '-', x, ysmoothed, '--')
 #plt.show()
 
@@ -39,6 +39,9 @@ Html_file= open("/Users/eusebiu.rizescu/Data/Git/myprecious/Drafts/interpolare.h
 Html_file.write(html_str)
 Html_file.close()
 
+
+print(str(y))
+print(str(ysmoothed))
 
 
 
