@@ -1,5 +1,6 @@
-python-binance>=0.3
-sqlalchemy
 mpld3
-matplotlib
 flask
+scipy
+sqlalchemy
+matplotlib
+python-binance>=0.3

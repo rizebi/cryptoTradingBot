@@ -38,12 +38,12 @@ def getLogger():
   log = logging.getLogger()
   return log
 
-def getPricesFromDatabase(config, coin, startTime):
+def getPrices(config, coin, startTime, endTime):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
 
-  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' and timestamp > " + str(startTime)
+  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(startTime) + " AND timestamp <= " + str(endTime)
   databaseCursor.execute(query)
   pricesX = []
   pricesY = []
@@ -59,77 +59,30 @@ def getPricesFromDatabase(config, coin, startTime):
       minimumPrice = float(entry[1])
   return pricesX, pricesY, minimumPrice, maximumPrice
 
-# For dry_run
-def getPricesFromFile(config, coin, startTime):
-  log = config["log"]
-
-  ### Reads datapoints
-  data = open(config["backtest_file"], "r")
-  data = data.read().split("\n")[0:-1]
-
-  # Sanitize data
-  dataPoints = []
-  for element in data:
-    if "nan" in element.lower():
-      continue
-    if len(element.split(",")) > 1:
-      dataPoints.append(float(element.split(",")[1]))
-    else:
-      dataPoints.append(float(element))
-
-  i = 0
-  pricesX = []
-  pricesY = []
-  maximumPrice = 0
-  minimumPrice = 100000000
-  while i < len(dataPoints) - 1:
-    i += 1
-    pricesX.append(i)
-    pricesY.append(dataPoints[i])
-    if dataPoints[i] > maximumPrice:
-      maximumPrice = dataPoints[i]
-    if dataPoints[i] < minimumPrice:
-      minimumPrice = dataPoints[i]
-
-  return pricesX, pricesY, minimumPrice, maximumPrice
-
-
-def getTrades(config, coin, startTime):
+def getTrades(config, coin, startTime, endTime):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
 
-  if config["dry_run"] == "false":
-    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "' and timestamp > " + str(startTime)
-  else:
-    # dry_run does not know about timestamp
-    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "'"
+  query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "' AND timestamp >= " + str(startTime) + " AND timestamp <= " + str(endTime)
 
   databaseCursor.execute(query)
   buyTrades = []
   sellTrades = []
   for entry in databaseCursor.fetchall():
-    if config["dry_run"] == "false":
-      if entry[1] == "BUY":
-        buyTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
-      else:
-        sellTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
+    if entry[1] == "BUY":
+      buyTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
     else:
-      if entry[1] == "BUY":
-        buyTrades.append(int(entry[0]))
-      else:
-        sellTrades.append(int(entry[0]))
+      sellTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
+
   return buyTrades, sellTrades
 
-def plot(config, outputFileName, startTime):
+def plot(config, outputFileName, startTime, endTime):
   log = config["log"]
   coin = "BTCUSDT"
-  if config["dry_run"] == "false":
-    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromDatabase(config, coin, startTime)
-  else:
-    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromFile(config, coin, startTime)
+  pricesX, pricesY, minimumPrice, maximumPrice = getPrices(config, coin, startTime, endTime)
 
-  buyTrades, sellTrades = getTrades(config, coin, startTime)
+  buyTrades, sellTrades = getTrades(config, coin, startTime, endTime)
 
   log.info("len(pricesX) = " + str(len(pricesX)))
   log.info("len(pricesY) = " + str(len(pricesY)))
@@ -186,12 +139,12 @@ def plot(config, outputFileName, startTime):
   # Show plot
   #plt.savefig('plot.png') # Maybe needed
   # plt.show()
-  if config["dry_run"] == "true":
+  if config["backtesting"] == "true":
     log.info("########")
     log.info("You can see the plot at:")
     log.info("file://" + os.path.join(currentDir, "templates", outputFileName))
 
-def mainFunction(outputFileName, startTime):
+def mainFunction(outputFileName, startTime, endTime):
   log = getLogger()
   log.info("################################# New run")
   try:
@@ -224,7 +177,7 @@ def mainFunction(outputFileName, startTime):
     config["log"] = log
 
     # Construct plot
-    plot(config, outputFileName, int(startTime))
+    plot(config, outputFileName, int(startTime), int(endTime))
 
   ##### END #####
   except KeyboardInterrupt:
@@ -239,8 +192,8 @@ def mainFunction(outputFileName, startTime):
 ##### BODY #####
 if __name__ == "__main__":
 
-  if len(sys.argv) != 3:
-    print ("Wrong number of parameters. Use: python plotter.py <outputFileName> <startTime>")
+  if len(sys.argv) != 4:
+    print ("Wrong number of parameters. Use: python plotter.py <outputFileName> <startTime> <endTime>")
     sys.exit(99)
   else:
-    mainFunction(sys.argv[1], sys.argv[2])
+    mainFunction(sys.argv[1], sys.argv[2], sys.argv[3])

@@ -29,7 +29,7 @@ def executeCommand(command):
 @app.route('/')
 def historyFull():
   # Create plot
-  output = executeCommand("python3 plotter.py index0.html 0")
+  output = executeCommand("python3 plotter.py index0.html 0 3000000000")
   # Return plot
   return render_template('index0.html')
 
@@ -38,7 +38,7 @@ def history3h():
   currentTime = time.time()
   wantedTime = int(time.time() - (3 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index3h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index3h.html " + str(wantedTime) + " 3000000000")
   # Return plot
   return render_template('index3h.html')
 
@@ -47,7 +47,7 @@ def history6h():
   currentTime = time.time()
   wantedTime = int(time.time() - (6 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index6h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index6h.html " + str(wantedTime) + " 3000000000")
   # Return plot
   return render_template('index6h.html')
 
@@ -56,7 +56,7 @@ def history12h():
   currentTime = time.time()
   wantedTime = int(time.time() - (12 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index12h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index12h.html " + str(wantedTime) + " 3000000000")
   # Return plot
   return render_template('index12h.html')
 
@@ -65,7 +65,7 @@ def history24h():
   currentTime = time.time()
   wantedTime = int(time.time() - (24 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index24h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index24h.html " + str(wantedTime) + " 3000000000")
   # Return plot
   return render_template('index24h.html')
 
@@ -74,7 +74,7 @@ def history3d():
   currentTime = time.time()
   wantedTime = int(time.time() - (3 * 24 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index3d.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index3d.html " + str(wantedTime) + " 3000000000")
   # Return plot
   return render_template('index3d.html')
 
@@ -83,7 +83,7 @@ def history7d():
   currentTime = time.time()
   wantedTime = int(time.time() - (7 * 24 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index7d.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index7d.html " + str(wantedTime) + " 3000000000")
   # Return plot
   return render_template('index7d.html')
 
@@ -92,7 +92,7 @@ def history30d():
   currentTime = time.time()
   wantedTime = int(time.time() - (30 * 24 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index30d.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index30d.html " + str(wantedTime) + " 3000000000")
   # Return plot
   return render_template('index30d.html')
 

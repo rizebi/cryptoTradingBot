@@ -17,12 +17,12 @@ from binanceManager import buyCrypto
 from binanceManager import sellCrypto
 
 from databaseManager import createTables
-from databaseManager import getPriceHistoryFromDatabase
-from databaseManager import getPriceHistoryFromFile
+from databaseManager import getPriceHistory
 from databaseManager import getLastTransactionStatus
 from databaseManager import insertTradeHistory
 from databaseManager import emptyTradeHistoryDatabase
 from databaseManager import arePricesGoingUp
+from databaseManager import getOldestPriceAfterCurrentDatapoint
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
@@ -68,29 +68,11 @@ def sendMessage(config, message):
     tracebackError = traceback.format_exc()
     log.info(tracebackError)
 
-# For back-testing
-def readDataFromFile(config):
-  log = config["log"]
-  priceFile = open(config["backtest_file"], "r")
-  data = priceFile.read().split("\n")[0:-1]
-  # Sanitize data
-  dataPoints = []
-  for element in data:
-    if "nan" in element.lower():
-      continue
-    if len(element.split(",")) > 1:
-      dataPoints.append(float(element.split(",")[1]))
-    else:
-      dataPoints.append(float(element))
-  config["dataPoints"] = dataPoints
-
 def constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns):
   log = config["log"]
   # Get the price history from database
-  if config["dry_run"] == "false":
-    realHistory = getPriceHistoryFromDatabase(config, coin, aggregatedBy * lookBackIntervals)
-  else:
-    realHistory = getPriceHistoryFromFile(config, coin, aggregatedBy * lookBackIntervals)
+  realHistory = getPriceHistory(config, coin, aggregatedBy * lookBackIntervals)
+
   if len(realHistory) < aggregatedBy * lookBackIntervals:
     return [], []
 
@@ -131,7 +113,7 @@ def trade(config):
     tradeRealPrice = buyCrypto(config)
 
     # Insert in trade_history
-    if config["dry_run"] == "false":
+    if config["backtesting"] == "false":
       # Update variables
       cryptoQuantity = getCurrencyBalance(config, 'BTC')
       currentDollars = getCurrencyBalance(config, 'USDT')
@@ -166,7 +148,7 @@ def trade(config):
     tradeRealPrice = sellCrypto(config)
 
     # Insert in trade_history
-    if config["dry_run"] == "false":
+    if config["backtesting"] == "false":
       # Update variables
       cryptoQuantity = getCurrencyBalance(config, 'BTC')
       currentDollars = getCurrencyBalance(config, 'USDT')
@@ -178,6 +160,21 @@ def trade(config):
       cryptoQuantity = 0
     insertTradeHistory(config, currentTime, coin, "SELL", tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity)
 
+  def backtestingPrintStatistics(config):
+    log = config["log"]
+    log.info("####################")
+    log.info("Backtesting ended. Statistics:")
+    log.info("currentRealPrice = " + str(currentRealPrice))
+    log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
+    log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
+    log.info("tradeRealPrice = " + str(tradeRealPrice))
+    log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
+    if doWeHaveCrypto == True:
+      log.info("currentDollars = " + str(cryptoQuantity * tradeRealPrice))
+      log.info("cryptoQuantity = " + str(0))
+    else:
+      log.info("currentDollars = " + str(currentDollars))
+      log.info("cryptoQuantity = " + str(cryptoQuantity))
 
   # First we need to get the current state of liquidity
   # Extrapolate to many coins if the case
@@ -200,53 +197,54 @@ def trade(config):
   # Time between runs
   timeBetweenRuns = int(config["seconds_between_scrapes"])
 
-  # Dry run configurations
-  config["currentDatapoint"] = 0 # for backtesting when reading from file
-  runOnce = False # for backtesting
-  if config["dry_run"] == "true":
+  # Backtesting configurations
+  if config["backtesting"] == "true":
     emptyTradeHistoryDatabase(config)
-    readDataFromFile(config)
-    # For dry run do not create all the time the binanceClient
+    config["currentDatapoint"] = config["backtesting_start_timestamp"] # for backtesting
+
+    # runOnce is needed for backtesting in order to stop when end is reached
+    runOnce = False # for backtesting
+
+    # For backtesting do not create all the time the binanceClient
     binanceClient = Client(config["api_key"], config["api_secret_key"])
     config["binanceClient"] = binanceClient
+
+  #######################
+  #### Eternal While ####
+  #######################
   while True:
     # Update logger handler
     log = getLogger()
     config["log"] = log
-    currentTime = int(time.time())
 
     # Get Binance Client everytime, because after some time it may behave wrong
-    if config["dry_run"] == "false":
+    if config["backtesting"] == "false":
       binanceClient = Client(config["api_key"], config["api_secret_key"])
       config["binanceClient"] = binanceClient
-
-    config["currentDatapoint"] += 1
-    if config["dry_run"] == "false":
+      currentTime = int(time.time())
       log.info("[Datapoint " + str(currentTime) + "] ######################################################")
     else:
+      config["currentDatapoint"] = getOldestPriceAfterCurrentDatapoint(config, coin)
+      if config["currentDatapoint"] < int(config["backtesting_start_timestamp"]):
+        log.info("Prices between [backtesting_start_timestamp; backtesting_end_timestamp] not present in database")
+        backtestingPrintStatistics(config)
+        return
+      currentTime = config["currentDatapoint"]
       log.info("[Datapoint " + str(config["currentDatapoint"]) + "] ######################################################")
+
     # Get price history
     realHistory, aggregatedHistory = constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns)
     if len(realHistory) == 0:
-      if config["dry_run"] == "true" and runOnce == True:
-        log.info("####################")
-        log.info("Backtesting ended. Statistics:")
-        log.info("currentRealPrice = " + str(currentRealPrice))
-        log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
-        log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
-        log.info("tradeRealPrice = " + str(tradeRealPrice))
-        log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
-        if doWeHaveCrypto == True:
-          log.info("currentDollars = " + str(cryptoQuantity * tradeRealPrice))
-          log.info("cryptoQuantity = " + str(0))
-        else:
-          log.info("currentDollars = " + str(currentDollars))
-          log.info("cryptoQuantity = " + str(cryptoQuantity))
-        sys.exit(0)
+      if config["backtesting"] == "true":
+        if runOnce == True:
+          # Backtesting ended. Print statistics and exit.
+          backtestingPrintStatistics(config)
+          return
+          #sys.exit(0)
       log.info("Too few data to aggregate")
       time.sleep(timeBetweenRuns)
       continue
-    runOnce = True
+
     # Get last transaction status
     status = getLastTransactionStatus(config, coin)
     lastTradeTimestamp = int(status["timestamp"])
@@ -260,11 +258,11 @@ def trade(config):
     maximumAggregatedPrice = status["maximumAggregatedPrice"]
 
     # Log the minutes since last trades
-    if config["dry_run"] == "false":
-      minutesSinceLastTrade = int((currentTime - lastTradeTimestamp) / 60)
-    else:
-      minutesSinceLastTrade = int(config["currentDatapoint"] - lastTradeTimestamp)
+    minutesSinceLastTrade = int((currentTime - lastTradeTimestamp) / 60)
     log.info("minutesSinceLastTrade = " + str(minutesSinceLastTrade))
+
+    if config["backtesting"] == "true":
+      runOnce = True
 
     # Now the logic comes. To buy, to wait, to sell
     currentRealPrice = realHistory[-1]
@@ -326,14 +324,7 @@ def trade(config):
 
         # peakIndex < 0
         if peakIndex < (-1) * peakIndexTreshold:
-          if config["dry_run"] == "false":
-            cooldownExpression = currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellPeak)
-          else:
-            if lastTradeTimestamp == 0:
-              cooldownExpression = False
-            else:
-              cooldownExpression = config["currentDatapoint"] - lastTradeTimestamp < int(cooldownMinutesSellPeak)
-          if cooldownExpression:
+          if  currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellPeak):
             if peakIndex < (-1) * peakIndexTresholdIgnoreCooldown:
               # We exceeded the BIG treshold, get out. Ignore cooldown
               # SELL
@@ -341,10 +332,7 @@ def trade(config):
               time.sleep(timeBetweenRuns)
               continue
             log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
-            if config["dry_run"] == "false":
-              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-            else:
-              waitMinutes = int(cooldownMinutesBuy) - (config["currentDatapoint"] - lastTradeTimestamp)
+            waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
             log.info("Wait at least " + str(waitMinutes) + " more minutes.")
             time.sleep(timeBetweenRuns)
             continue
@@ -360,19 +348,9 @@ def trade(config):
           continue
       # SELL strategy 2 (sell if currentAggregatedPrice < tradeAggregatedPrice)
       if currentAggregatedPrice < tradeAggregatedPrice:
-        if config["dry_run"] == "false":
-          cooldownExpression = currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice)
-        else:
-          if lastTradeTimestamp == 0:
-            cooldownExpression = False
-          else:
-            cooldownExpression = config["currentDatapoint"] - lastTradeTimestamp < int(cooldownMinutesSellBuyPrice)
-        if cooldownExpression:
+        if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
           log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
-          if config["dry_run"] == "false":
-            waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-          else:
-            waitMinutes = int(cooldownMinutesBuy) - (config["currentDatapoint"] - lastTradeTimestamp)
+          waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
           log.info("Wait at least " + str(waitMinutes) + " more minutes.")
           time.sleep(timeBetweenRuns)
           continue
@@ -395,19 +373,9 @@ def trade(config):
           time.sleep(timeBetweenRuns)
           continue
         else:
-          if config["dry_run"] == "false":
-            cooldownExpression = currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy)
-          else:
-            if lastTradeTimestamp == 0:
-              cooldownExpression = False
-            else:
-              cooldownExpression = config["currentDatapoint"] - lastTradeTimestamp < int(cooldownMinutesBuy)
-          if cooldownExpression:
+          if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
             log.info("WAIT FOR COOLDOWN. No buying.")
-            if config["dry_run"] == "false":
-              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-            else:
-              waitMinutes = int(cooldownMinutesBuy) - (config["currentDatapoint"] - lastTradeTimestamp)
+            waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
             log.info("Wait at least " + str(waitMinutes) + " more minutes.")
             time.sleep(timeBetweenRuns)
             continue
