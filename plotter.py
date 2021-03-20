@@ -77,6 +77,35 @@ def getTrades(config, coin, startTime, endTime):
 
   return buyTrades, sellTrades
 
+def getPricesSmoothed(config, pricesX, pricesY):
+  log = config["log"]
+  pricesX.reverse()
+  pricesY.reverse()
+  aggregatedBy = 30
+  i = 0
+  pricesXAggregated = []
+  pricesYAggregated = []
+  while i < len(pricesX):
+    sumaX = 0
+    sumaY = 0
+    currentLen = 0
+    j = 0
+    while j < aggregatedBy:
+      if i < len(pricesX):
+        sumaX += pricesX[i].timestamp()
+        sumaY += pricesY[i]
+        currentLen += 1
+      i += 1
+      j += 1
+    pricesXAggregated.append(datetime.datetime.fromtimestamp(sumaX/currentLen))
+    pricesYAggregated.append(sumaY/currentLen)
+
+  pricesXAggregated.reverse()
+  pricesYAggregated.reverse()
+
+  pricesYSmoothed = gaussian_filter1d(pricesYAggregated, sigma=4)
+  return pricesXAggregated, pricesYSmoothed
+
 def plot(config, outputFileName, startTime, endTime):
   log = config["log"]
   coin = "BTCUSDT"
@@ -124,8 +153,8 @@ def plot(config, outputFileName, startTime, endTime):
     plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
 
   # Plot interpolate
-  pricesYSmoothed = gaussian_filter1d(pricesY, sigma=4)
-  plt.plot(pricesX, pricesYSmoothed, '--', linewidth=3)
+  pricesXSmoothed, pricesYSmoothed = getPricesSmoothed(config, pricesX, pricesY)
+  plt.plot(pricesXSmoothed, pricesYSmoothed, '--', linewidth=3)
 
   # Create "templates" directory (needed by Flask)
   if not os.path.isdir(os.path.join(currentDir, "templates")):
@@ -146,7 +175,7 @@ def plot(config, outputFileName, startTime, endTime):
 
 def mainFunction(outputFileName, startTime, endTime):
   log = getLogger()
-  log.info("################################# New run")
+  log.info("################################# New run plotter.py")
   try:
     # Check if configuration file exists, and exit if it is not
     if os.path.isfile(configFile) is False:

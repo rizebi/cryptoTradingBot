@@ -69,11 +69,14 @@ def mainFunction():
     backtesting_start_timestamp = config["backtesting_start_timestamp"]
 
     # Run bot
+    log.info("#### Run bot")
     #output = executeCommand("python3 bot.py")
     bot.mainFunction()
     # Run plotter
+    log.info("#### Run plotter")
     filename = "backtester-" + config["backtesting_start_timestamp"] + "-" + config["backtesting_end_timestamp"] + ".html"
-    output = executeCommand("python3 plotter.py " + filename + " " + config["backtesting_start_timestamp"] + " " + config["backtesting_end_timestamp"])
+    output, error = executeCommand("python3 plotter.py " + filename + " " + config["backtesting_start_timestamp"] + " " + config["backtesting_end_timestamp"])
+    log.info(error)
 
   ##### END #####
   except KeyboardInterrupt:
