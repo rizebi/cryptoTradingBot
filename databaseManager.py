@@ -96,10 +96,7 @@ def getPriceHistory(config, coin, howMany):
 @fn_timer
 def getLastTransactionStatus(config, coin):
   log = config["log"]
-  if config["backtesting"] == "false":
-    databaseClient = config["databaseClient"]
-  else:
-    databaseClient = config["databaseClientInMemory"]
+  databaseClient = config["databaseClient"]
   sendMessage = config["sendMessage"]
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT * FROM trade_history WHERE coin='" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')")
