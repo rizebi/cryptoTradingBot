@@ -1,5 +1,20 @@
 import time
 import datetime
+import sqlite3 # for database connection
+from functools import wraps # for measuring time of function
+
+# Wrapper used to measure function times
+def fn_timer(function):
+    @wraps(function)
+    def function_timer(*args, **kwargs):
+        t0 = time.time()
+        result = function(*args, **kwargs)
+        t1 = time.time()
+        print ("######## Total time running %s: %s seconds" %
+               (function.__name__, str(t1-t0))
+               )
+        return result
+    return function_timer
 
 def createTables(config):
   log = config["log"]
@@ -18,6 +33,14 @@ def createTables(config):
   databaseClient.commit()
   log.info("Table <trade_history> successfully created.")
 
+# Function used for backtesting.
+# Excessive reading from the disk is slow.
+def loadDatabaseInMemory(config):
+  databaseClient = config["databaseClient"]
+  databaseClientInMemory = sqlite3.connect(':memory:')
+  databaseClient.backup(databaseClientInMemory)
+  config["databaseClientInMemory"] = databaseClientInMemory
+
 # Funcion used only when back_testing
 def emptyTradeHistoryDatabase(config):
   log = config["log"]
@@ -27,9 +50,13 @@ def emptyTradeHistoryDatabase(config):
   databaseClient.execute('''DELETE FROM trade_history''')
   databaseClient.commit()
 
+@fn_timer
 def getPriceHistory(config, coin, howMany):
   log = config["log"]
-  databaseClient = config["databaseClient"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
   sendMessage = config["sendMessage"]
   # First, check the latest timestamp from database. If this is old, will return []
   databaseCursor = databaseClient.cursor()
@@ -66,9 +93,13 @@ def getPriceHistory(config, coin, howMany):
   return dataPoints
 
 # Function that reads from DB the last transaction
+@fn_timer
 def getLastTransactionStatus(config, coin):
   log = config["log"]
-  databaseClient = config["databaseClient"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
   sendMessage = config["sendMessage"]
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT * FROM trade_history WHERE coin='" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')")
@@ -92,9 +123,13 @@ def getLastTransactionStatus(config, coin):
     return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "tradeRealPrice": float(lastTransaction[0][4]), "tradeAggregatedPrice": float(lastTransaction[0][5]), "currentDollars": float(lastTransaction[0][6]), "cryptoQuantity": float(lastTransaction[0][7]), "gainOrLoss": float(lastTransaction[0][8]), "maximumPrice": maximumPrice, "maximumAggregatedPrice": maximumAggregatedPrice}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
+@fn_timer
 def getMaximumPriceAfterLastTransaction(config, lastBuyingTimestamp):
   log = config["log"]
-  databaseClient = config["databaseClient"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
   sendMessage = config["sendMessage"]
   coin = "BTCUSDT"
   databaseCursor = databaseClient.cursor()
@@ -182,9 +217,13 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
     sendMessage(config, message)
 
 # tradeMethod is BUY or SELL in order to choose the right parameter
+@fn_timer
 def arePricesGoingUp(config, coin, tradeMethod):
   log = config["log"]
-  databaseClient = config["databaseClient"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
   # We do all of this in a try because in case of any error, the bot will not sell. So will return False if any error in order to not disturb functionality
   try:
     databaseCursor = databaseClient.cursor()
@@ -220,9 +259,14 @@ def arePricesGoingUp(config, coin, tradeMethod):
     sendMessage(config, message)
     return False
 
+# Used for backtesting
+@fn_timer
 def getOldestPriceAfterCurrentDatapoint(config, coin):
   log = config["log"]
-  databaseClient = config["databaseClient"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
   sendMessage = config["sendMessage"]
   # First, check the latest timestamp from database. If this is old, will return []
   databaseCursor = databaseClient.cursor()

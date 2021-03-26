@@ -9,6 +9,7 @@ import requests # for HTTP requests
 import traceback # for error handling
 import configparser # for configuration parser
 
+from functools import wraps # for measuring time of function
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
@@ -23,6 +24,7 @@ from databaseManager import insertTradeHistory
 from databaseManager import emptyTradeHistoryDatabase
 from databaseManager import arePricesGoingUp
 from databaseManager import getOldestPriceAfterCurrentDatapoint
+from databaseManager import loadDatabaseInMemory
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
@@ -52,6 +54,19 @@ def getLogger():
   log = logging.getLogger()
   return log
 
+# Wrapper used to measure function times
+def fn_timer(function):
+    @wraps(function)
+    def function_timer(*args, **kwargs):
+        t0 = time.time()
+        result = function(*args, **kwargs)
+        t1 = time.time()
+        print ("######## Total time running %s: %s seconds" %
+               (function.__name__, str(t1-t0))
+               )
+        return result
+    return function_timer
+
 # Function that sends a message to Telegram
 def sendMessage(config, message):
   log = config["log"]
@@ -68,6 +83,7 @@ def sendMessage(config, message):
     tracebackError = traceback.format_exc()
     log.info(tracebackError)
 
+@fn_timer
 def constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns):
   log = config["log"]
   # Get the price history from database
@@ -200,6 +216,7 @@ def trade(config):
   # Backtesting configurations
   if config["backtesting"] == "true":
     emptyTradeHistoryDatabase(config)
+    loadDatabaseInMemory(config) # For quicker reads for backtesting
     config["currentDatapoint"] = config["backtesting_start_timestamp"] # for backtesting
 
     # runOnce is needed for backtesting in order to stop when end is reached
@@ -212,10 +229,15 @@ def trade(config):
   #######################
   #### Eternal While ####
   #######################
+  loopOldTime = time.time()
   while True:
     # Update logger handler
     log = getLogger()
     config["log"] = log
+
+    loopCurrentTime = time.time()
+    log.info("######## This loop took: " + str(loopCurrentTime - loopOldTime) + " seconds.")
+    loopOldTime = loopCurrentTime
 
     # Get Binance Client everytime, because after some time it may behave wrong
     if config["backtesting"] == "false":
