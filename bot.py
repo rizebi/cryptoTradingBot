@@ -175,6 +175,7 @@ def trade(config):
       tradeRealPrice = currentRealPrice
       tradeAggregatedPrice = currentAggregatedPrice
       currentDollars = cryptoQuantity * tradeRealPrice
+      # Substract here for the BUY commision
       currentDollars -= 0.001 * currentDollars
       cryptoQuantity = 0
     insertTradeHistory(config, currentTime, coin, "SELL", tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity)
@@ -183,6 +184,20 @@ def trade(config):
     log = config["log"]
     log.info("####################")
     log.info("Backtesting ended. Statistics:")
+    log.info("Full simulation took: " + str(time.time() - allScriptStartTime) + " seconds.")
+    log.info("Start time of simulation: " + str(config["backtesting_start_timestamp"]) + " = " + datetime.datetime.fromtimestamp(int(config["backtesting_start_timestamp"])).strftime("%Y-%m-%d_%H-%M-%S"))
+    log.info("End time of simulation: " + str(config["backtesting_end_timestamp"]) + " = " + datetime.datetime.fromtimestamp(int(config["backtesting_end_timestamp"])).strftime("%Y-%m-%d_%H-%M-%S"))
+    minimumAnalized = max(int(config["backtesting_start_timestamp"]), int(config["priceDictionary"]['BTCUSDT'][0][0]))
+    maximumAnalized = min(int(config["backtesting_end_timestamp"]), int(config["priceDictionary"]['BTCUSDT'][-1][0]))
+    log.info("Actual start time of simulation: " + str(minimumAnalized) + " = " + datetime.datetime.fromtimestamp(int(minimumAnalized)).strftime("%Y-%m-%d_%H-%M-%S"))
+    log.info("Actual end time of simulation: " + str(maximumAnalized) + " = " + datetime.datetime.fromtimestamp(int(maximumAnalized)).strftime("%Y-%m-%d_%H-%M-%S"))
+    minutesAnalized = (maximumAnalized - minimumAnalized) / 60
+    hoursAnalized = minutesAnalized / 60
+    daysAnalized = hoursAnalized / 24
+    log.info("Minutes analized: " + str(minutesAnalized))
+    log.info("Hours analized: " + str(hoursAnalized))
+    log.info("Days analized: " + str(daysAnalized))
+
     try:
       log.info("currentRealPrice = " + str(currentRealPrice))
       log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
@@ -200,22 +215,6 @@ def trade(config):
     # Write the database back on disk
     writeDatabaseOnDisk(config)
 
-    log.info("Full simulation took: " + str(time.time() - allScriptStartTime) + " seconds.")
-    log.info("Start time of simulation: " + str(config["backtesting_start_timestamp"]) + " = " + datetime.datetime.fromtimestamp(int(config["backtesting_start_timestamp"])).strftime("%Y-%m-%d_%H-%M-%S"))
-    log.info("End time of simulation: " + str(config["backtesting_end_timestamp"]) + " = " + datetime.datetime.fromtimestamp(int(config["backtesting_end_timestamp"])).strftime("%Y-%m-%d_%H-%M-%S"))
-    minimumAnalized = max(int(config["backtesting_start_timestamp"]), int(config["priceDictionary"]['BTCUSDT'][0][0]))
-    maximumAnalized = min(int(config["backtesting_end_timestamp"]), int(config["priceDictionary"]['BTCUSDT'][-1][0]))
-    log.info("minimumAnalized = " + str(minimumAnalized))
-    log.info("maximumAnalized = " + str(maximumAnalized))
-
-    # TODO fix here. Afiseaza prost
-
-    minutesAnalized = (maximumAnalized - minimumAnalized) / 60
-    hoursAnalized = minutesAnalized / 60
-    daysAnalized = hoursAnalized / 24
-    log.info("Minutes analized: " + str(minutesAnalized))
-    log.info("Hours analized: " + str(hoursAnalized))
-    log.info("Days analized: " + str(daysAnalized))
 
   # First we need to get the current state of liquidity
   # Extrapolate to many coins if the case
@@ -264,9 +263,10 @@ def trade(config):
     log = getLogger()
     config["log"] = log
 
-    loopCurrentTime = time.time()
-    log.info("######## This loop took: " + str(loopCurrentTime - loopOldTime) + " seconds.")
-    loopOldTime = loopCurrentTime
+    # If need to measure performance issues
+    #loopCurrentTime = time.time()
+    #log.info("######## This loop took: " + str(loopCurrentTime - loopOldTime) + " seconds.")
+    #loopOldTime = loopCurrentTime
 
     # Get Binance Client everytime, because after some time it may behave wrong
     if config["backtesting"] == "false":

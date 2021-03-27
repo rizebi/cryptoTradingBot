@@ -62,7 +62,6 @@ def emptyTradeHistoryDatabase(config):
   databaseClient.execute('''DELETE FROM trade_history''')
   databaseClient.commit()
 
-@fn_timer
 def getPriceHistory(config, coin, howMany):
   log = config["log"]
   if config["backtesting"] == "false":
@@ -136,7 +135,6 @@ def getLastTransactionStatus(config, coin):
     return {"timestamp": int(lastTransaction[0][0]), "doWeHaveCrypto": doWeHaveCrypto, "tradeRealPrice": float(lastTransaction[0][4]), "tradeAggregatedPrice": float(lastTransaction[0][5]), "currentDollars": float(lastTransaction[0][6]), "cryptoQuantity": float(lastTransaction[0][7]), "gainOrLoss": float(lastTransaction[0][8]), "maximumPrice": maximumPrice, "maximumAggregatedPrice": maximumAggregatedPrice}
 
 # If de we have crypto, we have to gate from history the maximum value of crypto after buying
-@fn_timer
 def getMaximumPriceAfterLastTransaction(config, lastBuyingTimestamp):
   log = config["log"]
   if config["backtesting"] == "false":
@@ -161,6 +159,7 @@ def getMaximumPriceAfterLastTransaction(config, lastBuyingTimestamp):
     #maximumPrice = float(maximumPriceObj[0][1])
     # From variable
     dataPointsObj = getPricesBetweenTimestamps(config, coin, lastBuyingTimestamp, config["currentDatapoint"])
+
     # Now calculate maximum
     maximumPriceObj = max(dataPointsObj, key=lambda x: x[1])
     maximumPriceTimestamp = int(maximumPriceObj[0])
@@ -240,6 +239,7 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
     databaseCursor.execute(query)
     dataPointsObj = databaseCursor.fetchall()
     oldDollars = dataPointsObj[0][0] * dataPointsObj[0][1]
+    # Substract here for the SELL commision
     oldDollars += 0.001 * oldDollars
     gainOrLoss = currentDollars - oldDollars
 
@@ -257,7 +257,6 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
     sendMessage(config, message)
 
 # tradeMethod is BUY or SELL in order to choose the right parameter
-@fn_timer
 def arePricesGoingUp(config, coin, tradeMethod):
   log = config["log"]
   if config["backtesting"] == "false":
@@ -305,7 +304,6 @@ def arePricesGoingUp(config, coin, tradeMethod):
     return False
 
 # Used for backtesting
-@fn_timer
 def getOldestPriceAfterCurrentDatapoint(config, coin):
   log = config["log"]
   if config["backtesting"] == "false":
@@ -363,11 +361,13 @@ def readPriceHistoryInMemory(config):
         if int(priceObj[0]) > int(config["backtesting_end_timestamp"]):
           datapointsIndexDictionnary[coin][str(config["backtesting_end_timestamp"])] = i
           break
+    # If still not in dict, add as the last element
+    if str(config["backtesting_end_timestamp"]) not in datapointsIndexDictionnary[coin]:
+      datapointsIndexDictionnary[coin][str(config["backtesting_end_timestamp"])] = len(priceDictionary[coin]) - 1
 
     # Add 0 and 3000000000
     datapointsIndexDictionnary[coin]["0"] = 0
     datapointsIndexDictionnary[coin]["3000000000"] = len(priceDictionary[coin]) - 1
-    datapointsIndexDictionnary[coin][str(config["backtesting_end_timestamp"])] = len(priceDictionary[coin]) - 1
 
   config["priceDictionary"] = priceDictionary
   config["datapointsIndexDictionnary"] = datapointsIndexDictionnary
@@ -378,13 +378,13 @@ def readPriceHistoryInMemory(config):
 # Because it is backtesting, we have all the values in a variable
 # And we need only the prices between a timestamp
 # Function will return prices: [startTimestamp, endTimestamp] - closed intervals
-@fn_timer
 def getPricesBetweenTimestamps(config, coin, startTimestamp, endTimestamp):
   log = config["log"]
 
   if str(startTimestamp) in config["datapointsIndexDictionnary"][coin] and str(endTimestamp) in config["datapointsIndexDictionnary"][coin]:
     startIndex = config["datapointsIndexDictionnary"][coin][str(startTimestamp)]
     endIndex = config["datapointsIndexDictionnary"][coin][str(endTimestamp)]
+
     return config["priceDictionary"][coin][startIndex:endIndex + 1]
 
   startIndex = -1
@@ -396,4 +396,6 @@ def getPricesBetweenTimestamps(config, coin, startTimestamp, endTimestamp):
     if int(priceObj[0]) > int(endTimestamp):
       endIndex = i
       return config["priceDictionary"][coin][startIndex:endIndex]
+
+  # This will return if never the endTimestamp is included in list. For example 3000000000
   return config["priceDictionary"][coin][startIndex:len(config["priceDictionary"][coin])]
