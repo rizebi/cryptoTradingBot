@@ -105,6 +105,7 @@ def getPriceHistory(config, coin, howMany):
     dataPoints.append(price[1])
   return dataPoints
 
+
 # Function that reads from DB the last transaction
 def getLastTransactionStatus(config, coin):
   log = config["log"]
@@ -235,12 +236,12 @@ def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeA
   if action == "SELL":
     query = "SELECT tradeRealPrice, cryptoQuantity from trade_history WHERE coin = '" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')"
 
-    # TODO. Aici ar trebui sa se calculeze mai corect. Nu cu 0.001. Si diferentiat intre backtesting si non backtesting
+    # TODO diferentiat intre backtesting si not backtesting
     databaseCursor.execute(query)
     dataPointsObj = databaseCursor.fetchall()
     oldDollars = dataPointsObj[0][0] * dataPointsObj[0][1]
     # Substract here for the SELL commision
-    oldDollars += 0.001 * oldDollars
+    oldDollars += float(config["backtesting_commision"]) * oldDollars
     gainOrLoss = currentDollars - oldDollars
 
   if config["backtesting"] == "true":
@@ -399,3 +400,13 @@ def getPricesBetweenTimestamps(config, coin, startTimestamp, endTimestamp):
 
   # This will return if never the endTimestamp is included in list. For example 3000000000
   return config["priceDictionary"][coin][startIndex:len(config["priceDictionary"][coin])]
+
+def countTradesFromDB(config):
+  log = config["log"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
+  databaseCursor = databaseClient.cursor()
+  databaseCursor.execute("SELECT count(*) FROM trade_history")
+  return int(databaseCursor.fetchall()[0][0])

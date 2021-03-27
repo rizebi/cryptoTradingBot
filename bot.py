@@ -28,7 +28,7 @@ from databaseManager import getOldestPriceAfterCurrentDatapoint
 from databaseManager import loadDatabaseInMemory
 from databaseManager import writeDatabaseOnDisk
 from databaseManager import readPriceHistoryInMemory
-
+from databaseManager import countTradesFromDB
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
@@ -114,11 +114,11 @@ def trade(config):
   log = config["log"]
 
   # Function that is called when a buy trade should be made
-  def buyHandler(config, currentDollars, cryptoQuantity):
+  def buyHandler(config, currentDollars, cryptoQuantity, buyReason):
     log = config["log"]
     sendMessage = config["sendMessage"]
     tradeAggregatedPrice = currentAggregatedPrice
-    message = "[BUY]\n"
+    message = "[BUY] " + buyReason + "\n"
     message += "aggregatedHistory:\n"
     for price in aggregatedHistory:
       message += str(price) + "\n"
@@ -140,7 +140,7 @@ def trade(config):
       tradeRealPrice = currentRealPrice
       tradeAggregatedPrice = currentAggregatedPrice
       cryptoQuantity = currentDollars / tradeRealPrice
-      cryptoQuantity -= 0.001 * cryptoQuantity
+      cryptoQuantity -= float(config["backtesting_commision"]) * cryptoQuantity
       currentDollars = 0
     insertTradeHistory(config, currentTime, coin, "BUY", tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity)
 
@@ -210,6 +210,7 @@ def trade(config):
       else:
         log.info("currentDollars = " + str(currentDollars))
         log.info("cryptoQuantity = " + str(cryptoQuantity))
+      log.info("Individual trades made: " + str(countTradesFromDB(config)))
     except:
       pass
     # Write the database back on disk
@@ -226,6 +227,7 @@ def trade(config):
   peakIndexTresholdIgnoreCooldown = float(config["peak_index_treshold_ignore_cooldown"])
   # Buy if difference between current price and lookBackIntervals datapoints ago is bigger than lastlookBackIntervalsIndexTreshold
   lastlookBackIntervalsIndexTreshold = float(config["buy_lookback_intervals_index_treshold"])
+  lastlookBackIntervalsIndexTresholdIgnoreCooldown = float(config["buy_lookback_intervals_index_treshold_ignore_cooldown"])
   cooldownMinutesBuy = int(config["cooldown_minutes_buy"])
   cooldownMinutesSellPeak = int(config["cooldown_minutes_sell_peak"])
   cooldownMinutesSellBuyPrice = int(config["cooldown_minutes_sell_buy_price"])
@@ -273,7 +275,7 @@ def trade(config):
       binanceClient = Client(config["api_key"], config["api_secret_key"])
       config["binanceClient"] = binanceClient
       currentTime = int(time.time())
-      log.info("[Datapoint " + str(currentTime) + "] ######################################################")
+      log.info("[Datapoint: " + str(currentTime) + " = " + datetime.datetime.fromtimestamp(int(currentTime)).strftime("%Y-%m-%d_%H-%M-%S") + "] ######################################################")
     else:
       config["currentDatapoint"] = getOldestPriceAfterCurrentDatapoint(config, coin)
 
@@ -283,7 +285,7 @@ def trade(config):
         backtestingPrintStatistics(config)
         return
       currentTime = config["currentDatapoint"]
-      log.info("[Datapoint " + str(config["currentDatapoint"]) + "] ######################################################")
+      log.info("[Datapoint: " + str(config["currentDatapoint"]) + " = " + datetime.datetime.fromtimestamp(int(config["currentDatapoint"])).strftime("%Y-%m-%d_%H-%M-%S") + "] ######################################################")
 
     # Get price history
     realHistory, aggregatedHistory = constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns)
@@ -338,9 +340,15 @@ def trade(config):
     log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
     log.info("averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)))
     log.info("lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)))
+    log.info("lastlookBackIntervalsIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTresholdIgnoreCooldown)))
 
 
     if doWeHaveCrypto == True:
+      # If this is true, the logic is the same as in the beggining
+      # If this is false, we will sell if average(aggregated_by) < agerage(aggregated_by * buy_lookback_intervals)
+      useSellStrategyPeakIndex = True
+      ### THIS SHOULD BE TRUE! False is for testing new strategy mode
+
       # Calculate peakIndex
       aquisitionDiffPrice = currentRealPrice - tradeRealPrice
       peakDiffPrice = currentAggregatedPrice - maximumAggregatedPrice
@@ -348,69 +356,89 @@ def trade(config):
       log.info("aquisitionDiffPrice = " + str(aquisitionDiffPrice))
       log.info("peakDiffPrice = " + str(peakDiffPrice))
       log.info("peakIndex = " + str('{:.10f}'.format(peakIndex)))
-      log.info("peakIndexTreshold = " + str('{:.10f}'.format(peakIndexTreshold)))
-      log.info("peakIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(peakIndexTresholdIgnoreCooldown)))
+      #log.info("peakIndexTreshold = " + str('{:.10f}'.format(peakIndexTreshold)))
+      #log.info("peakIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(peakIndexTresholdIgnoreCooldown)))
 
-      if peakIndex >= 0:
-        gain = aquisitionDiffPrice * cryptoQuantity
-        log.info("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade: " + str(gain) + "$.")
-        time.sleep(timeBetweenRuns)
-        continue
-      else:
-        # If the real prices (not aggregated) are in a positive trend, do not sell
-        if arePricesGoingUp(config, coin, "SELL") == True:
-          log.info("KEEP. peakIndex is negative, but current trend is positive.")
+      if useSellStrategyPeakIndex == True:
+        if peakIndex >= 0:
+          gain = aquisitionDiffPrice * cryptoQuantity
+          log.info("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade: " + str(gain) + "$.")
           time.sleep(timeBetweenRuns)
           continue
         else:
-          log.info("Realtime trend is down. If we exceeded treshold, we will sell")
+          # If the real prices (not aggregated) are in a positive trend, do not sell
+          if arePricesGoingUp(config, coin, "SELL") == True:
+            log.info("KEEP. peakIndex is negative, but current trend is positive.")
+            time.sleep(timeBetweenRuns)
+            continue
+          else:
+            log.info("Realtime trend is down. If we exceeded treshold, we will sell")
 
-        # This protects us from bot restarts. If maximum was long time ago, but the market is growing, that's it. We missed it.
-        # At least do not sell only to want to buy back.
-        # TODO, backtest!!!
-        #if averagelookBackIntervalsDatapointsIndex > 0:
-        #  log.info("KEEP. Maybe we should have sold, but the buying strategy tells to buy if we did not have crypto")
-        #  time.sleep(timeBetweenRuns)
-        #  continue
+          # This protects us from bot restarts. If maximum was long time ago, but the market is growing, that's it. We missed it.
+          # At least do not sell only to want to buy back.
+          # TODO, backtest!!!
+          #if averagelookBackIntervalsDatapointsIndex > 0:
+          #  log.info("KEEP. Maybe we should have sold, but the buying strategy tells to buy if we did not have crypto")
+          #  time.sleep(timeBetweenRuns)
+          #  continue
 
-        # SELL strategy 1 (sell if exceeded index from peak)
+          # SELL strategy 1 (sell if exceeded index from peak)
 
-        # peakIndex < 0
-        if peakIndex < (-1) * peakIndexTreshold:
-          if  currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellPeak):
-            if peakIndex < (-1) * peakIndexTresholdIgnoreCooldown:
-              # We exceeded the BIG treshold, get out. Ignore cooldown
-              # SELL
-              sellHandler(config, currentDollars, cryptoQuantity, "We exceeded the BIG treshold, get out, ignoring cooldown")
+          # peakIndex < 0
+          if peakIndex < (-1) * peakIndexTreshold:
+            if  currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellPeak):
+              if peakIndex < (-1) * peakIndexTresholdIgnoreCooldown:
+                # We exceeded the BIG treshold, get out. Ignore cooldown
+                # SELL
+                sellHandler(config, currentDollars, cryptoQuantity, "We exceeded the BIG treshold, get out, ignoring cooldown")
+                time.sleep(timeBetweenRuns)
+                continue
+              log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
+              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
+              log.info("Wait at least " + str(waitMinutes) + " more minutes.")
               time.sleep(timeBetweenRuns)
               continue
-            log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
+            # We exceeded treshold, get out
+            # SELL
+            sellHandler(config, currentDollars, cryptoQuantity, "We exceeded treshold, get out")
+            time.sleep(timeBetweenRuns)
+            continue
+          else:
+            # We did not exceeded treshold, maybe we will come back
+            log.info("Treshold not exceeded. KEEP")
+            time.sleep(timeBetweenRuns)
+            continue
+        # SELL strategy 2 (sell if currentAggregatedPrice < tradeAggregatedPrice)
+        if currentAggregatedPrice < tradeAggregatedPrice:
+          if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
+            log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
             waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
             log.info("Wait at least " + str(waitMinutes) + " more minutes.")
             time.sleep(timeBetweenRuns)
             continue
-          # We exceeded treshold, get out
           # SELL
-          sellHandler(config, currentDollars, cryptoQuantity, "We exceeded treshold, get out")
+          sellHandler(config, currentDollars, cryptoQuantity, "currentAggregatedPrice < tradeAggregatedPrice")
+          time.sleep(timeBetweenRuns)
+          continue
+      else:
+        # SELL strategy 3. Sell with the same logic as buy but reverse.
+        if averagelookBackIntervalsDatapointsIndex > 0 or arePricesGoingUp(config, coin, "SELL") == False:
+          log.info("WAIT. Do not sell. Market going up")
           time.sleep(timeBetweenRuns)
           continue
         else:
-          # We did not exceeded treshold, maybe we will come back
-          log.info("Treshold not exceeded. KEEP")
+          if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
+              log.info("WAIT FOR COOLDOWN. No selling.")
+              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
+              log.info("Wait at least " + str(waitMinutes) + " more minutes.")
+              time.sleep(timeBetweenRuns)
+              continue
+          else:
+            sellReason = "Sell the same logic as buy "
+          # Buy
+          sellHandler(config, currentDollars, cryptoQuantity, sellReason)
           time.sleep(timeBetweenRuns)
           continue
-      # SELL strategy 2 (sell if currentAggregatedPrice < tradeAggregatedPrice)
-      if currentAggregatedPrice < tradeAggregatedPrice:
-        if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
-          log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
-          waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-          log.info("Wait at least " + str(waitMinutes) + " more minutes.")
-          time.sleep(timeBetweenRuns)
-          continue
-        # SELL
-        sellHandler(config, currentDollars, cryptoQuantity, "currentAggregatedPrice < tradeAggregatedPrice")
-        time.sleep(timeBetweenRuns)
-        continue
     else:
       # We do not have crypto
       # Should we buy?
@@ -427,14 +455,18 @@ def trade(config):
           continue
         else:
           if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
-            log.info("WAIT FOR COOLDOWN. No buying.")
-            waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-            log.info("Wait at least " + str(waitMinutes) + " more minutes.")
-            time.sleep(timeBetweenRuns)
-            continue
-
+            if averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTresholdIgnoreCooldown:
+              log.info("WAIT FOR COOLDOWN. No buying.")
+              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
+              log.info("Wait at least " + str(waitMinutes) + " more minutes.")
+              time.sleep(timeBetweenRuns)
+              continue
+            else:
+              buyReason = "BIG increase. Buy ignoring treshold"
+          else:
+            buyReason = "Seems increase. Buy"
           # Buy
-          buyHandler(config, currentDollars, cryptoQuantity)
+          buyHandler(config, currentDollars, cryptoQuantity, buyReason)
           time.sleep(timeBetweenRuns)
           continue
     # In case we have missed a time.sleep in the logic
