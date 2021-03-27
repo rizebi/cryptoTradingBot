@@ -25,6 +25,8 @@ from databaseManager import emptyTradeHistoryDatabase
 from databaseManager import arePricesGoingUp
 from databaseManager import getOldestPriceAfterCurrentDatapoint
 from databaseManager import loadDatabaseInMemory
+from databaseManager import writeDatabaseOnDisk
+
 ##### Constants #####
 currentDir = os.getcwd()
 configFile = "./configuration.cfg"
@@ -247,6 +249,7 @@ def trade(config):
       log.info("[Datapoint " + str(currentTime) + "] ######################################################")
     else:
       config["currentDatapoint"] = getOldestPriceAfterCurrentDatapoint(config, coin)
+
       if config["currentDatapoint"] < int(config["backtesting_start_timestamp"]):
         log.info("Prices between [backtesting_start_timestamp; backtesting_end_timestamp] not present in database")
         backtestingPrintStatistics(config)
@@ -408,6 +411,10 @@ def trade(config):
           continue
     # In case we have missed a time.sleep in the logic
     time.sleep(timeBetweenRuns)
+
+    # Write the database back on disk
+    if config["backtesting"] == "true":
+      writeDatabaseOnDisk(config)
 
 # Main function
 def mainFunction():

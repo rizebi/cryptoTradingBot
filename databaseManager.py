@@ -41,6 +41,13 @@ def loadDatabaseInMemory(config):
   databaseClient.backup(databaseClientInMemory)
   config["databaseClientInMemory"] = databaseClientInMemory
 
+# Funciton used for backtesting
+# Excessive reading from the disk is slow.
+def writeDatabaseOnDisk(config):
+  databaseClient = config["databaseClient"]
+  databaseClientInMemory = config["databaseClient"]
+  databaseClientInMemory.backup(databaseClient)
+
 # Funcion used only when back_testing
 def emptyTradeHistoryDatabase(config):
   log = config["log"]
@@ -96,7 +103,10 @@ def getPriceHistory(config, coin, howMany):
 @fn_timer
 def getLastTransactionStatus(config, coin):
   log = config["log"]
-  databaseClient = config["databaseClient"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
   sendMessage = config["sendMessage"]
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT * FROM trade_history WHERE coin='" + coin + "' AND timestamp = (SELECT MAX(timestamp + 0) FROM trade_history WHERE coin='" + coin + "')")
@@ -185,7 +195,10 @@ def getMaximumPriceAfterLastTransaction(config, lastBuyingTimestamp):
 
 def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity):
   log = config["log"]
-  databaseClient = config["databaseClient"]
+  if config["backtesting"] == "false":
+    databaseClient = config["databaseClient"]
+  else:
+    databaseClient = config["databaseClientInMemory"]
   sendMessage = config["sendMessage"]
   # Here we have to calculate the gainOrLoss
   gainOrLoss = 0
