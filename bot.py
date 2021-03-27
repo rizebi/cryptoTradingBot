@@ -24,8 +24,10 @@ from databaseManager import insertTradeHistory
 from databaseManager import emptyTradeHistoryDatabase
 from databaseManager import arePricesGoingUp
 from databaseManager import getOldestPriceAfterCurrentDatapoint
+# Used for backtesting
 from databaseManager import loadDatabaseInMemory
 from databaseManager import writeDatabaseOnDisk
+from databaseManager import readPriceHistoryInMemory
 
 ##### Constants #####
 currentDir = os.getcwd()
@@ -63,7 +65,7 @@ def fn_timer(function):
         t0 = time.time()
         result = function(*args, **kwargs)
         t1 = time.time()
-        print ("######## Total time running %s: %s seconds" %
+        print ("######## Total time running %s : %s seconds" %
                (function.__name__, str(t1-t0))
                )
         return result
@@ -85,7 +87,6 @@ def sendMessage(config, message):
     tracebackError = traceback.format_exc()
     log.info(tracebackError)
 
-@fn_timer
 def constructHistory(config, coin, aggregatedBy, lookBackIntervals, timeBetweenRuns):
   log = config["log"]
   # Get the price history from database
@@ -182,17 +183,39 @@ def trade(config):
     log = config["log"]
     log.info("####################")
     log.info("Backtesting ended. Statistics:")
-    log.info("currentRealPrice = " + str(currentRealPrice))
-    log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
-    log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
-    log.info("tradeRealPrice = " + str(tradeRealPrice))
-    log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
-    if doWeHaveCrypto == True:
-      log.info("currentDollars = " + str(cryptoQuantity * tradeRealPrice))
-      log.info("cryptoQuantity = " + str(0))
-    else:
-      log.info("currentDollars = " + str(currentDollars))
-      log.info("cryptoQuantity = " + str(cryptoQuantity))
+    try:
+      log.info("currentRealPrice = " + str(currentRealPrice))
+      log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
+      log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
+      log.info("tradeRealPrice = " + str(tradeRealPrice))
+      log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
+      if doWeHaveCrypto == True:
+        log.info("currentDollars = " + str(cryptoQuantity * tradeRealPrice))
+        log.info("cryptoQuantity = " + str(0))
+      else:
+        log.info("currentDollars = " + str(currentDollars))
+        log.info("cryptoQuantity = " + str(cryptoQuantity))
+    except:
+      pass
+    # Write the database back on disk
+    writeDatabaseOnDisk(config)
+
+    log.info("Full simulation took: " + str(time.time() - allScriptStartTime) + " seconds.")
+    log.info("Start time of simulation: " + str(config["backtesting_start_timestamp"]) + " = " + datetime.datetime.fromtimestamp(int(config["backtesting_start_timestamp"])).strftime("%Y-%m-%d_%H-%M-%S"))
+    log.info("End time of simulation: " + str(config["backtesting_end_timestamp"]) + " = " + datetime.datetime.fromtimestamp(int(config["backtesting_end_timestamp"])).strftime("%Y-%m-%d_%H-%M-%S"))
+    minimumAnalized = max(int(config["backtesting_start_timestamp"]), int(config["priceDictionary"]['BTCUSDT'][0][0]))
+    maximumAnalized = min(int(config["backtesting_end_timestamp"]), int(config["priceDictionary"]['BTCUSDT'][-1][0]))
+    log.info("minimumAnalized = " + str(minimumAnalized))
+    log.info("maximumAnalized = " + str(maximumAnalized))
+
+    # TODO fix here. Afiseaza prost
+
+    minutesAnalized = (maximumAnalized - minimumAnalized) / 60
+    hoursAnalized = minutesAnalized / 60
+    daysAnalized = hoursAnalized / 24
+    log.info("Minutes analized: " + str(minutesAnalized))
+    log.info("Hours analized: " + str(hoursAnalized))
+    log.info("Days analized: " + str(daysAnalized))
 
   # First we need to get the current state of liquidity
   # Extrapolate to many coins if the case
@@ -219,6 +242,7 @@ def trade(config):
   if config["backtesting"] == "true":
     emptyTradeHistoryDatabase(config)
     loadDatabaseInMemory(config) # For quicker reads for backtesting
+    readPriceHistoryInMemory(config) # For even quicker reads for backtesting
     config["currentDatapoint"] = config["backtesting_start_timestamp"] # for backtesting
 
     # runOnce is needed for backtesting in order to stop when end is reached
@@ -227,6 +251,9 @@ def trade(config):
     # For backtesting do not create all the time the binanceClient
     binanceClient = Client(config["api_key"], config["api_secret_key"])
     config["binanceClient"] = binanceClient
+
+    # Use for backtesting to calculate the full time of script run
+    allScriptStartTime = time.time()
 
   #######################
   #### Eternal While ####
@@ -252,6 +279,7 @@ def trade(config):
 
       if config["currentDatapoint"] < int(config["backtesting_start_timestamp"]):
         log.info("Prices between [backtesting_start_timestamp; backtesting_end_timestamp] not present in database")
+        # Backtesting ended. Print statistics and exit.
         backtestingPrintStatistics(config)
         return
       currentTime = config["currentDatapoint"]
@@ -411,10 +439,6 @@ def trade(config):
           continue
     # In case we have missed a time.sleep in the logic
     time.sleep(timeBetweenRuns)
-
-    # Write the database back on disk
-    if config["backtesting"] == "true":
-      writeDatabaseOnDisk(config)
 
 # Main function
 def mainFunction():

@@ -10,7 +10,7 @@ def fn_timer(function):
         t0 = time.time()
         result = function(*args, **kwargs)
         t1 = time.time()
-        print ("######## Total time running %s: %s seconds" %
+        print ("######## Total time running %s : %s seconds" %
                (function.__name__, str(t1-t0))
                )
         return result
@@ -44,8 +44,13 @@ def loadDatabaseInMemory(config):
 # Funciton used for backtesting
 # Excessive reading from the disk is slow.
 def writeDatabaseOnDisk(config):
+  log = config["log"]
+  log.info("Dumping database on disk.")
   databaseClient = config["databaseClient"]
-  databaseClientInMemory = config["databaseClient"]
+  databaseClientInMemory = config["databaseClientInMemory"]
+  databaseCursor = databaseClient.cursor()
+  databaseCursor.execute("DROP TABLE price_history")
+  databaseCursor.execute("DROP TABLE trade_history")
   databaseClientInMemory.backup(databaseClient)
 
 # Funcion used only when back_testing
@@ -79,28 +84,29 @@ def getPriceHistory(config, coin, howMany):
       sendMessage(config, message)
       return []
 
-  # TODO here might be a problem when ordering by timestamp
-  # It will see 100 < 94 for example
-  # But, because epochTime has constant number of digits, it should be ok
-
   # When running in production, get the most recent prices
   # When running in backtesting mode, get until the currentDatapoint
   if config["backtesting"] == "false":
-    query = "SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(howMany)
+    query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "'"
+    databaseCursor.execute(query)
+    dataPointsObj = databaseCursor.fetchall()
   else:
     currentDatapoint = config["currentDatapoint"]
-    query = "SELECT price FROM price_history WHERE coin='" + coin + "' AND timestamp <= " + str(currentDatapoint) + " AND timestamp >= " + str(config["backtesting_start_timestamp"]) + " order by timestamp desc limit " + str(howMany)
+    # From DB
+    #query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' AND timestamp <= " + str(currentDatapoint) + " AND timestamp >= " + str(config["backtesting_start_timestamp"])
+    #databaseCursor.execute(query)
+    #dataPointsObj = databaseCursor.fetchall()
+    # From variable
+    dataPointsObj = getPricesBetweenTimestamps(config, coin, config["backtesting_start_timestamp"], currentDatapoint)
 
-  databaseCursor.execute(query)
-  dataPointsObj = databaseCursor.fetchall()
-  dataPointsObj.reverse()
+  dataPointsObj = dataPointsObj[len(dataPointsObj) - howMany:]
+
   dataPoints = []
   for price in dataPointsObj:
-    dataPoints.append(price[0])
+    dataPoints.append(price[1])
   return dataPoints
 
 # Function that reads from DB the last transaction
-@fn_timer
 def getLastTransactionStatus(config, coin):
   log = config["log"]
   if config["backtesting"] == "false":
@@ -121,7 +127,7 @@ def getLastTransactionStatus(config, coin):
   else:
     if lastTransaction[0][3] == "BUY":
       doWeHaveCrypto = True
-      # If de we have crypto, we have to gate from history the maximum value of crypto after buying
+      # If we have crypto, we have to get from history the maximum value of crypto after buying
       maximumPrice, maximumAggregatedPrice = getMaximumPriceAfterLastTransaction(config, int(lastTransaction[0][0]))
     else:
       doWeHaveCrypto = False
@@ -142,27 +148,49 @@ def getMaximumPriceAfterLastTransaction(config, lastBuyingTimestamp):
   databaseCursor = databaseClient.cursor()
   if config["backtesting"] == "false":
     query = "SELECT timestamp, max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(lastBuyingTimestamp)
+    databaseCursor.execute(query)
+    maximumPriceObj = databaseCursor.fetchall()
+    maximumPriceTimestamp = int(maximumPriceObj[0][0])
+    maximumPrice = float(maximumPriceObj[0][1])
   else:
-    query = "SELECT timestamp, max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(lastBuyingTimestamp) + " AND timestamp <= " + str(config["currentDatapoint"])
-
-  databaseCursor.execute(query)
-  maximumPriceObj = databaseCursor.fetchall()
-  maximumPriceTimestamp = int(maximumPriceObj[0][0])
-  maximumPrice = float(maximumPriceObj[0][1])
+    # From DB
+    #query = "SELECT timestamp, max(price) FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(lastBuyingTimestamp) + " AND timestamp <= " + str(config["currentDatapoint"])
+    #databaseCursor.execute(query)
+    #maximumPriceObj = databaseCursor.fetchall()
+    #maximumPriceTimestamp = int(maximumPriceObj[0][0])
+    #maximumPrice = float(maximumPriceObj[0][1])
+    # From variable
+    dataPointsObj = getPricesBetweenTimestamps(config, coin, lastBuyingTimestamp, config["currentDatapoint"])
+    # Now calculate maximum
+    maximumPriceObj = max(dataPointsObj, key=lambda x: x[1])
+    maximumPriceTimestamp = int(maximumPriceObj[0])
+    maximumPrice = float(maximumPriceObj[1])
 
   # Get list
   databaseCursor = databaseClient.cursor()
   if config["backtesting"] == "false":
-    query = "SELECT price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(maximumPriceTimestamp - 70 * int(config["aggregated_by"])) + " AND timestamp <= " + str(maximumPriceTimestamp + 70 * int(config["aggregated_by"]))
+    query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(maximumPriceTimestamp - 70 * int(config["aggregated_by"])) + " AND timestamp <= " + str(maximumPriceTimestamp + 70 * int(config["aggregated_by"]))
+    databaseCursor.execute(query)
+    dataPointsObj = databaseCursor.fetchall()
   else:
-      query = "SELECT price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(maximumPriceTimestamp - 70 * int(config["aggregated_by"])) + " AND timestamp <= " + str(maximumPriceTimestamp + 70 * int(config["aggregated_by"])) + " AND timestamp <= " + str(config["currentDatapoint"])
-  databaseCursor.execute(query)
+    # From DB
+    #query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(maximumPriceTimestamp - 70 * int(config["aggregated_by"])) + " AND timestamp <= " + str(maximumPriceTimestamp + 70 * int(config["aggregated_by"])) + " AND timestamp <= " + str(config["currentDatapoint"])
+    #databaseCursor.execute(query)
+    #dataPointsObj = databaseCursor.fetchall()
+    # From variable
+    startTimestamp = maximumPriceTimestamp - 70 * int(config["aggregated_by"])
+    endTimestamp = min(maximumPriceTimestamp + 70 * int(config["aggregated_by"]), config["currentDatapoint"])
+    dataPointsObj = getPricesBetweenTimestamps(config, coin, startTimestamp, endTimestamp)
+
   pricesList = []
-  for entry in databaseCursor.fetchall():
-    pricesList.append(entry[0])
+  for entry in dataPointsObj:
+    pricesList.append(entry[1])
 
   maximumIndex = pricesList.index(maximumPrice)
-  currentTime = int(time.time())
+  if config["backtesting"] == "false":
+    currentTime = int(time.time())
+  else:
+    currentTime = config["currentDatapoint"]
   if (currentTime - maximumPriceTimestamp) / 60 >= int(config["aggregated_by"]) / 2:
     # We can put maximum exactly in the middle
     startIndex = int(maximumIndex - int(config["aggregated_by"]) / 2)
@@ -176,6 +204,7 @@ def getMaximumPriceAfterLastTransaction(config, lastBuyingTimestamp):
   i = startIndex - 1
   lenSuma = 0
   # TODO check for index out of range
+  # TODO check for backtesting to not use next variables. Maybe do a deepcopy to be sure that index is not exceeded
   while i < endIndex:
     i += 1
     if i < len(pricesList):
@@ -191,6 +220,7 @@ def getMaximumPriceAfterLastTransaction(config, lastBuyingTimestamp):
       sendMessage(config, message)
 
   maximumAggregatedPrice = suma / lenSuma
+
   return maximumPrice, maximumAggregatedPrice
 
 def insertTradeHistory(config, currentTime, coin, action, tradeRealPrice, tradeAggregatedPrice, currentDollars, cryptoQuantity):
@@ -243,15 +273,20 @@ def arePricesGoingUp(config, coin, tradeMethod):
       trendLookbackIntervals = int(config["trend_direction_sell_intervals"])
 
     if config["backtesting"] == "false":
-      query = "SELECT price FROM price_history WHERE coin='" + coin + "' order by timestamp desc limit " + str(trendLookbackIntervals)
+      query = "SELECT price FROM price_history WHERE coin='" + coin
+      databaseCursor.execute(query)
+      dataPointsObj = databaseCursor.fetchall()
     else:
-      query = "SELECT price FROM price_history WHERE coin='" + coin + "' AND timestamp <= " + str(config["currentDatapoint"]) + " order by timestamp desc limit " + str(trendLookbackIntervals)
-    databaseCursor.execute(query)
-    dataPointsObj = databaseCursor.fetchall()
-    dataPointsObj.reverse()
+      # From DB
+      #query = "SELECT price FROM price_history WHERE coin='" + coin + "' AND timestamp <= " + str(config["currentDatapoint"])
+      #databaseCursor.execute(query)
+      #dataPointsObj = databaseCursor.fetchall()
+      dataPointsObj = getPricesBetweenTimestamps(config, coin, 0, config["currentDatapoint"])
+
+    dataPointsObj = dataPointsObj[len(dataPointsObj) - trendLookbackIntervals:]
     dataPoints = []
     for price in dataPointsObj:
-      dataPoints.append(price[0])
+      dataPoints.append(price[1])
     # The commented 3 lines are for average
     #currentRealPrice = dataPoints[-1]
     #averagePrice = sum(dataPoints) / trendLookbackIntervals
@@ -282,12 +317,83 @@ def getOldestPriceAfterCurrentDatapoint(config, coin):
   databaseCursor = databaseClient.cursor()
   currentDatapoint = config["currentDatapoint"]
 
-  query = "SELECT timestamp FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(currentDatapoint) + " AND timestamp < " + str(config["backtesting_end_timestamp"]) + " order by timestamp asc limit 1"
+  # From DB
+  #query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' AND timestamp > " + str(currentDatapoint) + " AND timestamp < " + str(config["backtesting_end_timestamp"]) + " limit 1"
+  #databaseCursor.execute(query)
+  #nextDatapointObj = databaseCursor.fetchall()
+  #if len(nextDatapointObj) != 1:
+  #  return int(nextDatapointObj[0][0])
+  # From variable
+  nextDatapointObj = getPricesBetweenTimestamps(config, coin, currentDatapoint, config["backtesting_end_timestamp"])
+  if len(nextDatapointObj) != 1:
+    if int(nextDatapointObj[1][0]) <= int(config["backtesting_end_timestamp"]):
+      return int(nextDatapointObj[1][0])
 
-  databaseCursor.execute(query)
-  nextDatapointObj = databaseCursor.fetchall()
-  if len(nextDatapointObj) != 0:
-    return int(nextDatapointObj[0][0])
-  else:
-    # Return 0 in order to stop
-    return 0
+  # Return 0 in order to stop
+  return 0
+
+# Function used for backtesting.
+# When price_history gets bigger, the lookup in the price_history for each datapoint gets heavier.
+def readPriceHistoryInMemory(config):
+  log = config["log"]
+  databaseClient = config["databaseClientInMemory"]
+  databaseCursor = databaseClient.cursor()
+  priceDictionary = {}
+  for coin in config["coins_to_scrape"].split("|"):
+    query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "'"
+    databaseCursor.execute(query)
+    pricesObj = databaseCursor.fetchall()
+    priceDictionary[coin] = pricesObj
+
+  # Create hashtable with the prices (for better lookup)
+  datapointsIndexDictionnary = {}
+  for coin in config["coins_to_scrape"].split("|"):
+    datapointsIndexDictionnary[coin] = {}
+    for i, datapoint in enumerate(priceDictionary[coin]):
+      datapointsIndexDictionnary[coin][str(datapoint[0])] = i
+
+    # Add config["backtesting_start_timestamp"] and config["backtesting_end_timestamp"] in the hashtable.
+    if str(config["backtesting_start_timestamp"]) not in datapointsIndexDictionnary[coin]:
+      for i, priceObj in enumerate(priceDictionary[coin]):
+        if int(priceObj[0]) >= int(config["backtesting_start_timestamp"]):
+          datapointsIndexDictionnary[coin][str(config["backtesting_start_timestamp"])] = i
+          break
+    if str(config["backtesting_end_timestamp"]) not in datapointsIndexDictionnary[coin]:
+      for i, priceObj in enumerate(priceDictionary[coin]):
+        if int(priceObj[0]) > int(config["backtesting_end_timestamp"]):
+          datapointsIndexDictionnary[coin][str(config["backtesting_end_timestamp"])] = i
+          break
+
+    # Add 0 and 3000000000
+    datapointsIndexDictionnary[coin]["0"] = 0
+    datapointsIndexDictionnary[coin]["3000000000"] = len(priceDictionary[coin]) - 1
+    datapointsIndexDictionnary[coin][str(config["backtesting_end_timestamp"])] = len(priceDictionary[coin]) - 1
+
+  config["priceDictionary"] = priceDictionary
+  config["datapointsIndexDictionnary"] = datapointsIndexDictionnary
+
+  log.info("Prices successfully read in memory to avoid DB access for each datapoint")
+
+# Used for backtesting. Prices are not read from the DB, but from a variable
+# Because it is backtesting, we have all the values in a variable
+# And we need only the prices between a timestamp
+# Function will return prices: [startTimestamp, endTimestamp] - closed intervals
+@fn_timer
+def getPricesBetweenTimestamps(config, coin, startTimestamp, endTimestamp):
+  log = config["log"]
+
+  if str(startTimestamp) in config["datapointsIndexDictionnary"][coin] and str(endTimestamp) in config["datapointsIndexDictionnary"][coin]:
+    startIndex = config["datapointsIndexDictionnary"][coin][str(startTimestamp)]
+    endIndex = config["datapointsIndexDictionnary"][coin][str(endTimestamp)]
+    return config["priceDictionary"][coin][startIndex:endIndex + 1]
+
+  startIndex = -1
+  endIndex = -1
+  i = 0
+  for i, priceObj in enumerate(config["priceDictionary"][coin]):
+    if int(priceObj[0]) >= int(startTimestamp) and startIndex == -1:
+      startIndex = i
+    if int(priceObj[0]) > int(endTimestamp):
+      endIndex = i
+      return config["priceDictionary"][coin][startIndex:endIndex]
+  return config["priceDictionary"][coin][startIndex:len(config["priceDictionary"][coin])]
