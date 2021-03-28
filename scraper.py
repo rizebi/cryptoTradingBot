@@ -108,7 +108,20 @@ def scrape(log):
     log = getLogger()
 
     # Get Binance Client everytime, because after some time it may behave wrong
-    client = Client(config["api_key"], config["api_secret_key"])
+    try:
+      client = Client(config["api_key"], config["api_secret_key"])
+    except BinanceAPIException as e:
+      message = "[ERROR API] When getting refreshing client: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(3)
+      continue
+    except Exception as e:
+      message = "[ERROR] When getting refreshing client: " + str(e)
+      log.info(message)
+      sendMessage(log, message)
+      time.sleep(3)
+      continue
 
     startTime = time.time()
     for coin in config["coins_to_scrape"].split("|"):
@@ -207,7 +220,6 @@ def mainFunction():
       sendMessage(log, message)
     sendMessage(log, str(e) + "\n\n\n\n" + str(tracebackError))
     sys.exit(99)
-
 
 ##### BODY #####
 if __name__ == "__main__":
