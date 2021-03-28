@@ -151,17 +151,20 @@ def scrape(log):
           if currentPrice != None:
             pricesDict[coin].append(currentPrice)
         else:
-          if len(pricesDict[coin]) < scrapesNumberPerInterval:
+          if len(pricesDict[coin]) < scrapesNumberPerInterval - 1:
             # Just add to the list
             if currentPrice != None:
               pricesDict[coin].append(currentPrice)
           else:
-            # Else write in the DB the average, and empty the list
-            currentTime = int(time.time())
-            log.info("DEBUG: pricesDict = " + str(pricesDict))
-            coinPrice = sum(pricesDict[coin]) / len(pricesDict[coin])
-            savePriceInDatabase(log, currentTime, coin, coinPrice)
-            pricesDict[coin] = []
+            # Add the current scrape, and write in the DB the average, and empty the list
+            if currentPrice != None:
+              pricesDict[coin].append(currentPrice)
+            if len(pricesDict[coin]) == scrapesNumberPerInterval:
+              currentTime = int(time.time())
+              log.info("DEBUG: pricesDict = " + str(pricesDict))
+              coinPrice = sum(pricesDict[coin]) / len(pricesDict[coin])
+              savePriceInDatabase(log, currentTime, coin, coinPrice)
+              pricesDict[coin] = []
 
     endTime = time.time()
     # Sleep until sleepTime seconds
