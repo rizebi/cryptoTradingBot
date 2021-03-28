@@ -75,17 +75,19 @@ def getCoinPrice(log, client, coin):
     if i > 1:
       log.info("Retry number " + str(i) + " for coin: '" + coin + "'")
     try:
-      # Maybe try current price: get_symbol_ticker --- too spiking
-      return client.get_avg_price(symbol=coin)["price"]
+      # This will return the actual price (too spikey)
+      return float(client.get_symbol_ticker(symbol=coin)["price"])
+      # This will return avg(5min)
+      #return client.get_avg_price(symbol=coin)["price"]
     except BinanceAPIException as e:
-      message = "[ERROR API] When getting avg(5m) price: " + str(e)
+      message = "[ERROR API] When getting current price for " + coin + ": " + str(e)
       log.info(message)
       sendMessage(log, message)
     except Exception as e:
-      message = "[ERROR] When getting avg(5m) price: " + str(e)
+      message = "[ERROR] When getting current price for " + coin + ": " + str(e)
       log.info(message)
       sendMessage(log, message)
-    time.sleep(5)
+    time.sleep(1)
   return None
 
 def savePriceInDatabase(log, currentTime, coin, currentPrice):
@@ -103,27 +105,70 @@ def savePriceInDatabase(log, currentTime, coin, currentPrice):
 # The function should never end, that scrape, and write in the database
 def scrape(log):
   log.info("Starting scraping.")
+  scrapesNumberPerInterval = int(config["scrapes_number_per_interval"])
+  secondsBetweenScrapes = int(config["seconds_between_scrapes"])
+  # We will insert in DB one price every secondsBetweenScrapes seconds
+  # That price will be the average between scrapesNumberPerInterval scrapes
+  # Calculate the sleepTime between queries to binance
+  sleepTime = float(secondsBetweenScrapes / scrapesNumberPerInterval)
+  pricesDict = {}
+  clientStartTime = 0
+  clientAgeMaximumAge = 3600
+
   while True:
     # Update logger handler
     log = getLogger()
-
-    # Get Binance Client everytime, because after some time it may behave wrong
-    client = Client(config["api_key"], config["api_secret_key"])
-
     startTime = time.time()
+
+    # Refresh Binance client if time.time() - clientStartTime exceeded clientAgeMaximumAge
+    if time.time() - clientStartTime >= clientAgeMaximumAge:
+      try:
+        client = Client(config["api_key"], config["api_secret_key"])
+        clientStartTime = time.time()
+      except BinanceAPIException as e:
+        message = "[ERROR API] When getting refreshing client: " + str(e)
+        log.info(message)
+        sendMessage(log, message)
+        time.sleep(3)
+        continue
+      except Exception as e:
+        message = "[ERROR] When getting refreshing client: " + str(e)
+        log.info(message)
+        sendMessage(log, message)
+        time.sleep(3)
+        continue
+
     for coin in config["coins_to_scrape"].split("|"):
         currentPrice = getCoinPrice(log, client, coin)
         if currentPrice == None:
           message = "Got no data now for coin " + coin + ". Continuing.."
+          sendMessage(log, message)
           continue
-        log.info("Got: " + currentPrice)
-        currentTime = int(time.time())
-        savePriceInDatabase(log, currentTime, coin, currentPrice)
+        log.info("For coin " + coin + " we got price: " + str(currentPrice))
+
+        if coin not in pricesDict:
+          pricesDict[coin] = []
+          if currentPrice != None:
+            pricesDict[coin].append(currentPrice)
+        else:
+          if len(pricesDict[coin]) < scrapesNumberPerInterval - 1:
+            # Just add to the list
+            if currentPrice != None:
+              pricesDict[coin].append(currentPrice)
+          else:
+            # Add the current scrape, and write in the DB the average, and empty the list
+            if currentPrice != None:
+              pricesDict[coin].append(currentPrice)
+            if len(pricesDict[coin]) == scrapesNumberPerInterval:
+              currentTime = int(time.time())
+              coinPrice = sum(pricesDict[coin]) / len(pricesDict[coin])
+              savePriceInDatabase(log, currentTime, coin, str(coinPrice))
+              pricesDict[coin] = []
 
     endTime = time.time()
-    # Sleep until 60 seconds
-    if int(config["seconds_between_scrapes"]) - (endTime - startTime) > 0:
-      time.sleep(int(config["seconds_between_scrapes"]) - (endTime - startTime))
+    # Sleep until sleepTime seconds
+    if sleepTime - (endTime - startTime) > 0:
+      time.sleep(sleepTime - (endTime - startTime))
 
 # Main function
 def mainFunction():
@@ -182,7 +227,6 @@ def mainFunction():
       log.info(tracebackError)
       sendMessage(log, message)
 
-
   ##### END #####
   except KeyboardInterrupt:
     try:
@@ -207,7 +251,6 @@ def mainFunction():
       sendMessage(log, message)
     sendMessage(log, str(e) + "\n\n\n\n" + str(tracebackError))
     sys.exit(99)
-
 
 ##### BODY #####
 if __name__ == "__main__":
