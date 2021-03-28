@@ -107,19 +107,19 @@ def getPricesSmoothed(config, pricesX, pricesY):
   pricesYSmoothed = gaussian_filter1d(pricesYAggregated, sigma=4)
   return pricesXAggregated, pricesYSmoothed
 
-def plot(config, outputFileName, startTime, endTime):
+def plot(config, drawTrades, outputFileName, startTime, endTime):
   log = config["log"]
   coin = "BTCUSDT"
   pricesX, pricesY, minimumPrice, maximumPrice = getPrices(config, coin, startTime, endTime)
-
-  buyTrades, sellTrades = getTrades(config, coin, startTime, endTime)
-
   log.info("len(pricesX) = " + str(len(pricesX)))
   log.info("len(pricesY) = " + str(len(pricesY)))
   log.info("minimumPrice = " + str(minimumPrice))
   log.info("maximumPrice = " + str(maximumPrice))
-  log.info("len(buyTrades) = " + str(len(buyTrades)))
-  log.info("len(sellTrades) = " + str(len(sellTrades)))
+
+  if drawTrades == "yes" or drawTrades == "True" or drawTrades == True:
+    buyTrades, sellTrades = getTrades(config, coin, startTime, endTime)
+    log.info("len(buyTrades) = " + str(len(buyTrades)))
+    log.info("len(sellTrades) = " + str(len(sellTrades)))
 
   #Create the Python figure
   #Set the size of the matplotlib canvas
@@ -145,13 +145,14 @@ def plot(config, outputFileName, startTime, endTime):
   maximumY = maximumPrice + 0.01 * maximumPrice
 
   # Plot buy trades
-  for trade in buyTrades:
-    #plt.axvline(x=trade, color='g') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='g', linewidth=3)
-  # Plot sell trades
-  for trade in sellTrades:
-    #plt.axvline(x=trade, color='r') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
+  if drawTrades == "yes" or drawTrades == "True" or drawTrades == True:
+    for trade in buyTrades:
+      #plt.axvline(x=trade, color='g') # Problem when redering as HTML
+      plt.plot((trade, trade), (minimumY, maximumY), color='g', linewidth=3)
+    # Plot sell trades
+    for trade in sellTrades:
+      #plt.axvline(x=trade, color='r') # Problem when redering as HTML
+      plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
 
   # Plot interpolate
   # Must dig more for ARM. Problem when creating docker image
@@ -175,7 +176,7 @@ def plot(config, outputFileName, startTime, endTime):
     log.info("You can see the plot at:")
     log.info("file://" + os.path.join(currentDir, "templates", outputFileName))
 
-def mainFunction(outputFileName, startTime, endTime):
+def mainFunction(outputFileName, drawTrades, startTime, endTime):
   log = getLogger()
   log.info("################################# New run plotter.py")
   try:
@@ -208,7 +209,7 @@ def mainFunction(outputFileName, startTime, endTime):
     config["log"] = log
 
     # Construct plot
-    plot(config, outputFileName, int(startTime), int(endTime))
+    plot(config, drawTrades, outputFileName, int(startTime), int(endTime))
 
   ##### END #####
   except KeyboardInterrupt:
@@ -223,8 +224,8 @@ def mainFunction(outputFileName, startTime, endTime):
 ##### BODY #####
 if __name__ == "__main__":
 
-  if len(sys.argv) != 4:
-    print ("Wrong number of parameters. Use: python plotter.py <outputFileName> <startTime> <endTime>")
+  if len(sys.argv) != 5:
+    print ("Wrong number of parameters. Use: python plotter.py <outputFileName> <drawTrades> <startTime> <endTime>")
     sys.exit(99)
   else:
-    mainFunction(sys.argv[1], sys.argv[2], sys.argv[3])
+    mainFunction(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
