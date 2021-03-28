@@ -9,6 +9,8 @@ import datetime # for logging
 import traceback # for error handling
 import configparser # for configuration parser
 import matplotlib.pyplot as plt
+# Must dig more for ARM
+#from scipy.ndimage.filters import gaussian_filter1d # for interpolation
 
 ##### Constants #####
 currentDir = os.getcwd()
@@ -37,12 +39,12 @@ def getLogger():
   log = logging.getLogger()
   return log
 
-def getPricesFromDatabase(config, coin, startTime):
+def getPrices(config, coin, startTime, endTime):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
 
-  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' and timestamp > " + str(startTime)
+  query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(startTime) + " AND timestamp <= " + str(endTime)
   databaseCursor.execute(query)
   pricesX = []
   pricesY = []
@@ -58,84 +60,66 @@ def getPricesFromDatabase(config, coin, startTime):
       minimumPrice = float(entry[1])
   return pricesX, pricesY, minimumPrice, maximumPrice
 
-# For dry_run
-def getPricesFromFile(config, coin, startTime):
-  log = config["log"]
-
-  ### Reads datapoints
-  data = open(config["backtest_file"], "r")
-  data = data.read().split("\n")[0:-1]
-
-  # Sanitize data
-  dataPoints = []
-  for element in data:
-    if "nan" in element.lower():
-      continue
-    if len(element.split(",")) > 1:
-      dataPoints.append(float(element.split(",")[1]))
-    else:
-      dataPoints.append(float(element))
-
-  i = 0
-  pricesX = []
-  pricesY = []
-  maximumPrice = 0
-  minimumPrice = 100000000
-  while i < len(dataPoints) - 1:
-    i += 1
-    pricesX.append(i)
-    pricesY.append(dataPoints[i])
-    if dataPoints[i] > maximumPrice:
-      maximumPrice = dataPoints[i]
-    if dataPoints[i] < minimumPrice:
-      minimumPrice = dataPoints[i]
-
-  return pricesX, pricesY, minimumPrice, maximumPrice
-
-
-def getTrades(config, coin, startTime):
+def getTrades(config, coin, startTime, endTime):
   log = config["log"]
   databaseClient = config["databaseClient"]
   databaseCursor = databaseClient.cursor()
 
-  if config["dry_run"] == "false":
-    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "' and timestamp > " + str(startTime)
-  else:
-    # dry_run does not know about timestamp
-    query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "'"
+  query = "SELECT timestamp, action FROM trade_history WHERE coin='" + coin + "' AND timestamp >= " + str(startTime) + " AND timestamp <= " + str(endTime)
 
   databaseCursor.execute(query)
   buyTrades = []
   sellTrades = []
   for entry in databaseCursor.fetchall():
-    if config["dry_run"] == "false":
-      if entry[1] == "BUY":
-        buyTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
-      else:
-        sellTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
+    if entry[1] == "BUY":
+      buyTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
     else:
-      if entry[1] == "BUY":
-        buyTrades.append(int(entry[0]))
-      else:
-        sellTrades.append(int(entry[0]))
+      sellTrades.append(datetime.datetime.fromtimestamp(int(entry[0])))
+
   return buyTrades, sellTrades
 
-def plot(config, outputFileName, startTime):
+def getPricesSmoothed(config, pricesX, pricesY):
+  log = config["log"]
+  pricesX.reverse()
+  pricesY.reverse()
+  aggregatedBy = 30
+  i = 0
+  pricesXAggregated = []
+  pricesYAggregated = []
+  while i < len(pricesX):
+    sumaX = 0
+    sumaY = 0
+    currentLen = 0
+    j = 0
+    while j < aggregatedBy:
+      if i < len(pricesX):
+        sumaX += pricesX[i].timestamp()
+        sumaY += pricesY[i]
+        currentLen += 1
+      i += 1
+      j += 1
+    pricesXAggregated.append(datetime.datetime.fromtimestamp(sumaX/currentLen))
+    pricesYAggregated.append(sumaY/currentLen)
+
+  pricesXAggregated.reverse()
+  pricesYAggregated.reverse()
+
+  pricesYSmoothed = gaussian_filter1d(pricesYAggregated, sigma=4)
+  return pricesXAggregated, pricesYSmoothed
+
+def plot(config, drawTrades, outputFileName, startTime, endTime):
   log = config["log"]
   coin = "BTCUSDT"
-  if config["dry_run"] == "false":
-    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromDatabase(config, coin, startTime)
-  else:
-    pricesX, pricesY, minimumPrice, maximumPrice = getPricesFromFile(config, coin, startTime)
-
-  buyTrades, sellTrades = getTrades(config, coin, startTime)
-
+  pricesX, pricesY, minimumPrice, maximumPrice = getPrices(config, coin, startTime, endTime)
   log.info("len(pricesX) = " + str(len(pricesX)))
   log.info("len(pricesY) = " + str(len(pricesY)))
   log.info("minimumPrice = " + str(minimumPrice))
   log.info("maximumPrice = " + str(maximumPrice))
-  log.info("len(buyTrades) = " + str(len(buyTrades)))
-  log.info("len(sellTrades) = " + str(len(sellTrades)))
+
+  if drawTrades == "yes" or drawTrades == "True" or drawTrades == True:
+    buyTrades, sellTrades = getTrades(config, coin, startTime, endTime)
+    log.info("len(buyTrades) = " + str(len(buyTrades)))
+    log.info("len(sellTrades) = " + str(len(sellTrades)))
 
   #Create the Python figure
   #Set the size of the matplotlib canvas
@@ -161,13 +145,19 @@ def plot(config, outputFileName, startTime):
   maximumY = maximumPrice + 0.01 * maximumPrice
 
   # Plot buy trades
-  for trade in buyTrades:
-    #plt.axvline(x=trade, color='g') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='g', linewidth=3)
-  # Plot sell trades
-  for trade in sellTrades:
-    #plt.axvline(x=trade, color='r') # Problem when redering as HTML
-    plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
+  if drawTrades == "yes" or drawTrades == "True" or drawTrades == True:
+    for trade in buyTrades:
+      #plt.axvline(x=trade, color='g') # Problem when redering as HTML
+      plt.plot((trade, trade), (minimumY, maximumY), color='g', linewidth=3)
+    # Plot sell trades
+    for trade in sellTrades:
+      #plt.axvline(x=trade, color='r') # Problem when redering as HTML
+      plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
+
+  # Plot interpolate
+  # Must dig more for ARM. Problem when creating docker image
+  #pricesXSmoothed, pricesYSmoothed = getPricesSmoothed(config, pricesX, pricesY)
+  #plt.plot(pricesXSmoothed, pricesYSmoothed, '--', linewidth=3)
 
   # Create "templates" directory (needed by Flask)
   if not os.path.isdir(os.path.join(currentDir, "templates")):
@@ -181,14 +171,14 @@ def plot(config, outputFileName, startTime):
   # Show plot
   #plt.savefig('plot.png') # Maybe needed
   # plt.show()
-  if config["dry_run"] == "true":
+  if config["backtesting"] == "true":
     log.info("########")
     log.info("You can see the plot at:")
     log.info("file://" + os.path.join(currentDir, "templates", outputFileName))
 
-def mainFunction(outputFileName, startTime):
+def mainFunction(outputFileName, drawTrades, startTime, endTime):
   log = getLogger()
-  log.info("################################# New run")
+  log.info("################################# New run plotter.py")
   try:
     # Check if configuration file exists, and exit if it is not
     if os.path.isfile(configFile) is False:
@@ -219,7 +209,7 @@ def mainFunction(outputFileName, startTime):
     config["log"] = log
 
     # Construct plot
-    plot(config, outputFileName, int(startTime))
+    plot(config, drawTrades, outputFileName, int(startTime), int(endTime))
 
   ##### END #####
   except KeyboardInterrupt:
@@ -234,8 +224,8 @@ def mainFunction(outputFileName, startTime):
 ##### BODY #####
 if __name__ == "__main__":
 
-  if len(sys.argv) != 3:
-    print ("Wrong number of parameters. Use: python plotter.py <outputFileName> <startTime>")
+  if len(sys.argv) != 5:
+    print ("Wrong number of parameters. Use: python plotter.py <outputFileName> <drawTrades> <startTime> <endTime>")
     sys.exit(99)
   else:
-    mainFunction(sys.argv[1], sys.argv[2])
+    mainFunction(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])

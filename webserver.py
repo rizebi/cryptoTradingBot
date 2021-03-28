@@ -29,73 +29,63 @@ def executeCommand(command):
 @app.route('/')
 def historyFull():
   # Create plot
-  output = executeCommand("python3 plotter.py index0.html 0")
+  output = executeCommand("python3 plotter.py index0.html yes 0 3000000000")
   # Return plot
   return render_template('index0.html')
 
-@app.route('/3h')
-def history3h():
+@app.route('/<number>m')
+def historyMinutes(number):
   currentTime = time.time()
-  wantedTime = int(time.time() - (3 * 60 * 60))
+  wantedTime = int(time.time() - (int(number) * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index3h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index" + str(number) + "m.html yes " + str(wantedTime) + " 3000000000")
   # Return plot
-  return render_template('index3h.html')
+  return render_template("index" + str(number) + "m.html")
 
-@app.route('/6h')
-def history6h():
+@app.route('/notrades/<number>m')
+def historyMinutesNoTrades(number):
   currentTime = time.time()
-  wantedTime = int(time.time() - (6 * 60 * 60))
+  wantedTime = int(time.time() - (int(number) * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index6h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index" + str(number) + "m.html no " + str(wantedTime) + " 3000000000")
   # Return plot
-  return render_template('index6h.html')
+  return render_template("index" + str(number) + "m.html")
 
-@app.route('/12h')
-def history12h():
+@app.route('/<number>h')
+def historyHours(number):
   currentTime = time.time()
-  wantedTime = int(time.time() - (12 * 60 * 60))
+  wantedTime = int(time.time() - (int(number) * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index12h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index" + str(number) + "h.html yes " + str(wantedTime) + " 3000000000")
   # Return plot
-  return render_template('index12h.html')
+  return render_template("index" + str(number) + "h.html")
 
-@app.route('/24h')
-def history24h():
+@app.route('/notrades/<number>h')
+def historyHoursNoTrades(number):
   currentTime = time.time()
-  wantedTime = int(time.time() - (24 * 60 * 60))
+  wantedTime = int(time.time() - (int(number) * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index24h.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index" + str(number) + "h.html no " + str(wantedTime) + " 3000000000")
   # Return plot
-  return render_template('index24h.html')
+  return render_template("index" + str(number) + "h.html")
 
-@app.route('/3d')
-def history3d():
+@app.route('/<number>d')
+def historyDays(number):
   currentTime = time.time()
-  wantedTime = int(time.time() - (3 * 24 * 60 * 60))
+  wantedTime = int(time.time() - (int(number) * 24 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index3d.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index" + str(number) + "d.html yes " + str(wantedTime) + " 3000000000")
   # Return plot
-  return render_template('index3d.html')
+  return render_template("index" + str(number) + "d.html")
 
-@app.route('/7d')
-def history7d():
+@app.route('/notrades/<number>d')
+def historyDaysNoTrades(number):
   currentTime = time.time()
-  wantedTime = int(time.time() - (7 * 24 * 60 * 60))
+  wantedTime = int(time.time() - (int(number) * 24 * 60 * 60))
   # Create plot
-  output = executeCommand("python3 plotter.py index7d.html " + str(wantedTime))
+  output = executeCommand("python3 plotter.py index" + str(number) + "d.html no " + str(wantedTime) + " 3000000000")
   # Return plot
-  return render_template('index7d.html')
-
-@app.route('/30d')
-def history30d():
-  currentTime = time.time()
-  wantedTime = int(time.time() - (30 * 24 * 60 * 60))
-  # Create plot
-  output = executeCommand("python3 plotter.py index30d.html " + str(wantedTime))
-  # Return plot
-  return render_template('index30d.html')
-
+  return render_template("index" + str(number) + "d.html")
 
 # Path for database
 @app.route('/database')
