@@ -163,7 +163,7 @@ def scrape(log):
               currentTime = int(time.time())
               log.info("DEBUG: pricesDict = " + str(pricesDict))
               coinPrice = sum(pricesDict[coin]) / len(pricesDict[coin])
-              savePriceInDatabase(log, currentTime, coin, coinPrice)
+              savePriceInDatabase(log, currentTime, coin, str(coinPrice))
               pricesDict[coin] = []
 
     endTime = time.time()

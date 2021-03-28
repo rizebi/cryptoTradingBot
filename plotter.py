@@ -9,7 +9,8 @@ import datetime # for logging
 import traceback # for error handling
 import configparser # for configuration parser
 import matplotlib.pyplot as plt
-from scipy.ndimage.filters import gaussian_filter1d # for interpolation
+# Must dig more for ARM
+#from scipy.ndimage.filters import gaussian_filter1d # for interpolation
 
 ##### Constants #####
 currentDir = os.getcwd()
@@ -153,8 +154,9 @@ def plot(config, outputFileName, startTime, endTime):
     plt.plot((trade, trade), (minimumY, maximumY), color='r', linewidth=3)
 
   # Plot interpolate
-  pricesXSmoothed, pricesYSmoothed = getPricesSmoothed(config, pricesX, pricesY)
-  plt.plot(pricesXSmoothed, pricesYSmoothed, '--', linewidth=3)
+  # Must dig more for ARM. Problem when creating docker image
+  #pricesXSmoothed, pricesYSmoothed = getPricesSmoothed(config, pricesX, pricesY)
+  #plt.plot(pricesXSmoothed, pricesYSmoothed, '--', linewidth=3)
 
   # Create "templates" directory (needed by Flask)
   if not os.path.isdir(os.path.join(currentDir, "templates")):
