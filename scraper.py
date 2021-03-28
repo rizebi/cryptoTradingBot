@@ -118,7 +118,8 @@ def scrape(log):
   while True:
     # Update logger handler
     log = getLogger()
-    log.info("DEBUG: New loop")
+    startTime = time.time()
+
     # Refresh Binance client if time.time() - clientStartTime exceeded clientAgeMaximumAge
     if time.time() - clientStartTime >= clientAgeMaximumAge:
       try:
@@ -137,7 +138,6 @@ def scrape(log):
         time.sleep(3)
         continue
 
-    startTime = time.time()
     for coin in config["coins_to_scrape"].split("|"):
         currentPrice = getCoinPrice(log, client, coin)
         if currentPrice == None:
@@ -161,7 +161,6 @@ def scrape(log):
               pricesDict[coin].append(currentPrice)
             if len(pricesDict[coin]) == scrapesNumberPerInterval:
               currentTime = int(time.time())
-              log.info("DEBUG: pricesDict = " + str(pricesDict))
               coinPrice = sum(pricesDict[coin]) / len(pricesDict[coin])
               savePriceInDatabase(log, currentTime, coin, str(coinPrice))
               pricesDict[coin] = []
