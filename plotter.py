@@ -170,7 +170,8 @@ def plot(config, drawTrades, outputFileName, startTime, endTime):
 
   # Show plot
   #plt.savefig('plot.png') # Maybe needed
-  # plt.show()
+  # TODO if HTML size > 10MB, plot the graph
+  #plt.show()
   if config["backtesting"] == "true":
     log.info("########")
     log.info("You can see the plot at:")

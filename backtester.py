@@ -75,7 +75,7 @@ def mainFunction():
     # Run plotter
     log.info("#### Run plotter")
     filename = "backtester-" + config["backtesting_start_timestamp"] + "-" + config["backtesting_end_timestamp"] + ".html"
-    output, error = executeCommand("python3 plotter.py " + filename + " " + config["backtesting_start_timestamp"] + " " + config["backtesting_end_timestamp"])
+    output, error = executeCommand("python3 plotter.py " + filename + " yes " + config["backtesting_start_timestamp"] + " " + config["backtesting_end_timestamp"])
     log.info(error)
 
   ##### END #####
