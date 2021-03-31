@@ -6,7 +6,7 @@ def getCurrencyBalance(config, currency):
   log = config["log"]
   binanceClient = config["binanceClient"]
   sendMessage = config["sendMessage"]
-  if config["backtesting"] == "false":
+  if config["dry_run"] == "false":
     log.info("Get balance for: " + currency)
   i = 0
   while i <= 10:
@@ -14,7 +14,7 @@ def getCurrencyBalance(config, currency):
     try:
       if i > 1:
         log.info("Retry number " + str(i) + " to get account balance.")
-      if config["backtesting"] == "false":
+      if config["dry_run"] == "false":
         balances = binanceClient.get_account()[u'balances']
       else:
         if currency == "USDT":
@@ -37,11 +37,11 @@ def getCurrencyBalance(config, currency):
     sendMessage(config, message)
     returnValue = -10000
 
-  if config["backtesting"] == "false":
+  if config["dry_run"] == "false":
     for currency_balance in balances:
         if currency_balance[u'asset'] == currency:
             returnValue = float(currency_balance[u'free'])
-  if config["backtesting"] == "false":
+  if config["dry_run"] == "false":
     log.info("Got: " + str('{:.10f}'.format(returnValue))  + " " + currency)
   return returnValue
 
@@ -55,7 +55,7 @@ def getCurrentCoinPrice(config, coin):
     if i > 1:
       log.info("Retry number " + str(i) + " for coin: '" + coin + "'")
     try:
-      if config["backtesting"] == "false":
+      if config["dry_run"] == "false":
         return float(binanceClient.get_symbol_ticker(symbol=coin)["price"])
       else:
         return -15
@@ -157,11 +157,11 @@ def buyCrypto(config):
         # Remove too many decimals
         quantityWanted = float(str(quantityWanted).split(".")[0] + "." + str(quantityWanted).split(".")[1][:6])
       log.info("quantity = " + str(quantityWanted))
-      if config["backtesting"] == "false":
+      if config["dry_run"] == "false":
         order = binanceClient.order_market_buy(symbol="BTCUSDT", quantity=(quantityWanted))
       else:
         order = "dummy"
-        message = "[INFO] Running in backtesting mode. No BUY Crypto order sent"
+        message = "[INFO] Running in dry_run mode. No BUY Crypto order sent"
         log.info(message)
         sendMessage(config, message)
     except BinanceAPIException as e:
@@ -180,7 +180,7 @@ def buyCrypto(config):
       log.info(message)
       sendMessage(config, message)
 
-  if config["backtesting"] == "false":
+  if config["dry_run"] == "false":
     log.info("BUY crypto order placed:")
     log.info(order)
 
@@ -201,7 +201,7 @@ def buyCrypto(config):
   oldDollars = currentDollars
   newCrypto = getCurrencyBalance(config, 'BTC')
 
-  if config["backtesting"] == "false":
+  if config["dry_run"] == "false":
     message = "[BUY Crypto successful]\n"
     message += "Summary\n"
     message += "tradeRealPrice = " + str(tradeRealPrice) + "\n"
@@ -231,11 +231,11 @@ def sellCrypto(config):
       else:
         quantityWanted = currentCrypto
       log.info("quantity = " + str(quantityWanted))
-      if config["backtesting"] == "false":
+      if config["dry_run"] == "false":
         order = binanceClient.order_market_sell(symbol="BTCUSDT", quantity=(quantityWanted))
       else:
         order = "dummy"
-        message = "[INFO] Running in backtesting mode. No SELL Crypto order sent"
+        message = "[INFO] Running in dry_run mode. No SELL Crypto order sent"
         log.info(message)
         sendMessage(config, message)
     except BinanceAPIException as e:
@@ -254,7 +254,7 @@ def sellCrypto(config):
       log.info(message)
       sendMessage(config, message)
 
-  if config["backtesting"] == "false":
+  if config["dry_run"] == "false":
     log.info("SELL crypto order placed:")
     log.info(order)
 
@@ -276,7 +276,7 @@ def sellCrypto(config):
   oldCrypto = currentCrypto
   newDollars = getCurrencyBalance(config, 'USDT')
 
-  if config["backtesting"] == "false":
+  if config["dry_run"] == "false":
     message = "[SELL Crypto successful]\n"
     message += "Summary\n"
     message += "tradeRealPrice = " + str(tradeRealPrice) + "\n"

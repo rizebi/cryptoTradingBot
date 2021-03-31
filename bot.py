@@ -238,8 +238,6 @@ def trade(config):
   # The bot will buy if  the current price is above average for lookBackIntervals
   # These are big intervals. Aggregated ones
   lookBackIntervals = int(config["buy_lookback_intervals"])
-  # Time between runs
-  timeBetweenRuns = int(config["seconds_between_scrapes"])
 
   # Backtesting configurations
   if config["backtesting"] == "true":
@@ -257,6 +255,12 @@ def trade(config):
 
     # Use for backtesting to calculate the full time of script run
     allScriptStartTime = time.time()
+
+    timeBetweenRuns = 0
+
+  else:
+    # Time between runs
+    timeBetweenRuns = int(config["seconds_between_scrapes"])
 
   #######################
   #### Eternal While ####
@@ -433,9 +437,6 @@ def trade(config):
         realPriceAgo = getFirstRealPriceAfterTimestamp(config, coin, timestampMinutesAgo)
         realPriceDiffPrice = currentRealPrice - realPriceAgo
         realPriceAgoIndex = realPriceDiffPrice / realPriceAgo
-        log.info("DEBUG - realPriceAgo = " + str(realPriceAgo))
-        log.info("DEBUG - realPriceDiffPrice = " + str(realPriceDiffPrice))
-        log.info("DEBUG - realPriceAgoIndex = " + str(realPriceAgoIndex))
         if realPriceAgoIndex < (-1) * float(config["sell_price_abruptly_drops_index_treshold"]):
           # SELL
           sellHandler(config, currentDollars, cryptoQuantity, "Seems abrupt drop. Sell.")
