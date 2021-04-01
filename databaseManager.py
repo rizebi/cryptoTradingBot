@@ -417,6 +417,7 @@ def getFirstRealPriceAfterTimestamp(config, coin, afterTimestamp):
     databaseClient = config["databaseClient"]
   else:
     databaseClient = config["databaseClientInMemory"]
+  databaseCursor = databaseClient.cursor()
 
   if config["backtesting"] == "false":
     query = "SELECT timestamp, price FROM price_history WHERE coin='" + coin + "' AND timestamp >= " + str(afterTimestamp)
