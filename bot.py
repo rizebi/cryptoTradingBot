@@ -272,9 +272,9 @@ def trade(config):
     config["log"] = log
 
     # If need to measure performance issues
-    #loopCurrentTime = time.time()
-    #log.info("######## This loop took: " + str(loopCurrentTime - loopOldTime) + " seconds.")
-    #loopOldTime = loopCurrentTime
+    loopCurrentTime = time.time()
+    log.info("######## This loop took: " + str(loopCurrentTime - loopOldTime) + " seconds.")
+    loopOldTime = loopCurrentTime
 
     # Get Binance Client everytime, because after some time it may behave wrong
     if config["backtesting"] == "false":
@@ -320,7 +320,8 @@ def trade(config):
 
     # Log the minutes since last trades
     minutesSinceLastTrade = int((currentTime - lastTradeTimestamp) / 60)
-    log.info("minutesSinceLastTrade = " + str(minutesSinceLastTrade))
+    if config["verbose"] == "true":
+      log.info("minutesSinceLastTrade = " + str(minutesSinceLastTrade))
 
     if config["backtesting"] == "true":
       runOnce = True
@@ -329,24 +330,26 @@ def trade(config):
     currentRealPrice = realHistory[-1]
     currentAggregatedPrice = aggregatedHistory[-1]
     # Print stats
-    log.info("currentRealPrice = " + str(currentRealPrice))
-    log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
-    log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
-    if doWeHaveCrypto == True:
-      log.info("tradeRealPrice = " + str(tradeRealPrice))
-      log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
-      log.info("maximumPrice = " + str(maximumPrice))
-      log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
-    log.info("aggregatedHistory = " + str(aggregatedHistory))
+    if config["verbose"] == "true":
+      log.info("currentRealPrice = " + str(currentRealPrice))
+      log.info("currentAggregatedPrice = " + str(currentAggregatedPrice))
+      log.info("doWeHaveCrypto = " + str(doWeHaveCrypto))
+      if doWeHaveCrypto == True:
+        log.info("tradeRealPrice = " + str(tradeRealPrice))
+        log.info("tradeAggregatedPrice = " + str(tradeAggregatedPrice))
+        log.info("maximumPrice = " + str(maximumPrice))
+        log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
+      log.info("aggregatedHistory = " + str(aggregatedHistory))
 
     # Calculate change in the last lookBackIntervals datapoints
     averagelookBackIntervalsDataPoints = sum(aggregatedHistory[(-1) * lookBackIntervals:])/lookBackIntervals
     averagelookBackIntervalsDataPointsDiff = currentAggregatedPrice - averagelookBackIntervalsDataPoints
     averagelookBackIntervalsDatapointsIndex = averagelookBackIntervalsDataPointsDiff / averagelookBackIntervalsDataPoints
-    log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
-    log.info("averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)))
-    log.info("lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)))
-    log.info("lastlookBackIntervalsIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTresholdIgnoreCooldown)))
+    if config["verbose"] == "true":
+      log.info("averagelookBackIntervalsDataPointsDiff = " + str(averagelookBackIntervalsDataPointsDiff))
+      log.info("averagelookBackIntervalsDatapointsIndex = " + str('{:.10f}'.format(averagelookBackIntervalsDatapointsIndex)))
+      log.info("lastlookBackIntervalsIndexTreshold = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTreshold)))
+      log.info("lastlookBackIntervalsIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(lastlookBackIntervalsIndexTresholdIgnoreCooldown)))
 
 
     if doWeHaveCrypto == True:
@@ -359,27 +362,31 @@ def trade(config):
       aquisitionDiffPrice = currentRealPrice - tradeRealPrice
       peakDiffPrice = currentAggregatedPrice - maximumAggregatedPrice
       peakIndex = peakDiffPrice / maximumAggregatedPrice
-      log.info("aquisitionDiffPrice = " + str(aquisitionDiffPrice))
-      log.info("peakDiffPrice = " + str(peakDiffPrice))
-      log.info("peakIndex = " + str('{:.10f}'.format(peakIndex)))
-      #log.info("peakIndexTreshold = " + str('{:.10f}'.format(peakIndexTreshold)))
-      #log.info("peakIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(peakIndexTresholdIgnoreCooldown)))
+      if config["verbose"] == "true":
+        log.info("aquisitionDiffPrice = " + str(aquisitionDiffPrice))
+        log.info("peakDiffPrice = " + str(peakDiffPrice))
+        log.info("peakIndex = " + str('{:.10f}'.format(peakIndex)))
+        #log.info("peakIndexTreshold = " + str('{:.10f}'.format(peakIndexTreshold)))
+        #log.info("peakIndexTresholdIgnoreCooldown = " + str('{:.10f}'.format(peakIndexTresholdIgnoreCooldown)))
 
       if useSellStrategyPeakIndex == "true":
         if peakIndex >= 0:
           gain = aquisitionDiffPrice * cryptoQuantity
-          log.info("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade: " + str(gain) + "$.")
+          if config["verbose"] == "true":
+            log.info("GOOD JOB. WE ARE MAKING MONEY. Gainings for this trade: " + str(gain) + "$.")
           # TODO Do we really should exit here?
           time.sleep(timeBetweenRuns)
           continue
         else:
           # If the real prices (not aggregated) are in a positive trend, do not sell
           if arePricesGoingUp(config, coin, "SELL") == True:
-            log.info("KEEP. peakIndex is negative, but current trend is positive. Continue.")
+            if config["verbose"] == "true":
+              log.info("KEEP. peakIndex is negative, but current trend is positive. Continue.")
             time.sleep(timeBetweenRuns)
             continue
           else:
-            log.info("Realtime trend is down. If we decide to sell, we can sell.")
+            if config["verbose"] == "true":
+              log.info("Realtime trend is down. If we decide to sell, we can sell.")
 
           # This protects us from bot restarts. If maximum was long time ago, but the market is growing, that's it. We missed it.
           # At least do not sell only to want to buy back.
@@ -400,9 +407,10 @@ def trade(config):
                 sellHandler(config, currentDollars, cryptoQuantity, "We exceeded the BIG treshold, get out, ignoring cooldown")
                 time.sleep(timeBetweenRuns)
                 continue
-              log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
-              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-              log.info("Wait at least " + str(waitMinutes) + " more minutes.")
+              if config["verbose"] == "true":
+                log.info("WAIT FOR COOLDOWN. No selling due to peakIndex < (-1) * peakIndexTreshold")
+                waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
+                log.info("Wait at least " + str(waitMinutes) + " more minutes.")
               #time.sleep(timeBetweenRuns)
               #continue
             else:
@@ -413,7 +421,8 @@ def trade(config):
               continue
           else:
             # We did not exceeded treshold, maybe we will come back
-            log.info("Treshold not exceeded. KEEP")
+            if config["verbose"] == "true":
+              log.info("Treshold not exceeded. KEEP")
             #time.sleep(timeBetweenRuns)
             #continue
 
@@ -422,9 +431,10 @@ def trade(config):
         if config["use_strategy_current_price_less_than_trade_price"] == "yes":
           if currentAggregatedPrice < tradeAggregatedPrice:
             if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
-              log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
-              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-              log.info("Wait at least " + str(waitMinutes) + " more minutes.")
+              if config["verbose"] == "true":
+                log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
+                waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
+                log.info("Wait at least " + str(waitMinutes) + " more minutes.")
               #time.sleep(timeBetweenRuns)
               #continue
             else:
@@ -448,16 +458,18 @@ def trade(config):
       else:
         # SELL strategy 4. Sell with the same logic as buy but reverse.
         if averagelookBackIntervalsDatapointsIndex > 0 or arePricesGoingUp(config, coin, "SELL") == False:
-          log.info("WAIT. Do not sell. Market going up")
+          if config["verbose"] == "true":
+            log.info("WAIT. Do not sell. Market going up")
           time.sleep(timeBetweenRuns)
           continue
         else:
           if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
+            if config["verbose"] == "true":
               log.info("WAIT FOR COOLDOWN. No selling.")
               waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
               log.info("Wait at least " + str(waitMinutes) + " more minutes.")
-              time.sleep(timeBetweenRuns)
-              continue
+            time.sleep(timeBetweenRuns)
+            continue
           else:
             sellReason = "Sell the same logic as buy "
           # Buy
@@ -470,20 +482,23 @@ def trade(config):
 
       # BUY Strategy 1 (buy if averagelookBackIntervalsDatapointsIndex > lastlookBackIntervalsIndexTreshold)
       if averagelookBackIntervalsDatapointsIndex < 0 or arePricesGoingUp(config, coin, "BUY") == False:
-        log.info("WAIT. Do not buy. Market going down")
+        if config["verbose"] == "true":
+          log.info("WAIT. Do not buy. Market going down")
         time.sleep(timeBetweenRuns)
         continue
       else:
         if averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTreshold:
-          log.info("WAIT. Do not buy. Too little increase.")
+          if config["verbose"] == "true":
+            log.info("WAIT. Do not buy. Too little increase.")
           time.sleep(timeBetweenRuns)
           continue
         else:
           if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesBuy):
             if averagelookBackIntervalsDatapointsIndex < lastlookBackIntervalsIndexTresholdIgnoreCooldown:
-              log.info("WAIT FOR COOLDOWN. No buying.")
-              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-              log.info("Wait at least " + str(waitMinutes) + " more minutes.")
+              if config["verbose"] == "true":
+                log.info("WAIT FOR COOLDOWN. No buying.")
+                waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
+                log.info("Wait at least " + str(waitMinutes) + " more minutes.")
               time.sleep(timeBetweenRuns)
               continue
             else:
@@ -494,14 +509,17 @@ def trade(config):
           # So it seems that we want to buy. We will calculate if currentAggregatedPrice is less than the maximumAggregatedPrice, for the maximum price in the last 30 minutes. If current is higher, will buy.
           if config["use_strategy_look_for_maximum_before_buy"] == "yes":
             firstTimestampToLookForMaximumBeforeBuy = currentTime - (60 * int(config["minutes_lookback_maximum_before_buy"]))
-            log.info("DEBUG - bot - try to getMaximumPriceAfterTimestamp")
+            if config["verbose"] == "true":
+              log.info("DEBUG - bot - try to getMaximumPriceAfterTimestamp")
             maximumPrice, maximumAggregatedPrice = getMaximumPriceAfterTimestamp(config, firstTimestampToLookForMaximumBeforeBuy)
-            log.info("Found in the last " + str(config["minutes_lookback_maximum_before_buy"]) + " minutes:")
-            log.info("maximumPrice = " + str(maximumPrice))
-            log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
+            if config["verbose"] == "true":
+              log.info("Found in the last " + str(config["minutes_lookback_maximum_before_buy"]) + " minutes:")
+              log.info("maximumPrice = " + str(maximumPrice))
+              log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
             if maximumAggregatedPrice > currentAggregatedPrice:
-              log.info("%%%%%%%%%%%%%")
-              log.info("We should have bought, but maximumAggregatedPrice < currentAggregatedPrice. Continue.")
+              if config["verbose"] == "true":
+                log.info("%%%%%%%%%%%%%")
+                log.info("We should have bought, but maximumAggregatedPrice < currentAggregatedPrice. Continue.")
               time.sleep(timeBetweenRuns)
               continue
 
