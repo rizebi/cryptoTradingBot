@@ -419,29 +419,31 @@ def trade(config):
 
         # From many test, this should be off (as it was for full March because of a bug)
         # SELL strategy 2 (sell if currentAggregatedPrice < tradeAggregatedPrice)
-#         if currentAggregatedPrice < tradeAggregatedPrice:
-#           if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
-#             log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
-#             waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
-#             log.info("Wait at least " + str(waitMinutes) + " more minutes.")
-#             #time.sleep(timeBetweenRuns)
-#             #continue
-#           else:
-#             # SELL
-#             sellHandler(config, currentDollars, cryptoQuantity, "currentAggregatedPrice < tradeAggregatedPrice")
-#             time.sleep(timeBetweenRuns)
-#             continue
+        if config["use_strategy_current_price_less_than_trade_price"] == "yes":
+          if currentAggregatedPrice < tradeAggregatedPrice:
+            if currentTime - lastTradeTimestamp < 60 * int(cooldownMinutesSellBuyPrice):
+              log.info("WAIT FOR COOLDOWN. No selling due to currentAggregatedPrice < tradeAggregatedPrice")
+              waitMinutes = int(((60 * int(cooldownMinutesBuy)) - (currentTime - lastTradeTimestamp)) / 60)
+              log.info("Wait at least " + str(waitMinutes) + " more minutes.")
+              #time.sleep(timeBetweenRuns)
+              #continue
+            else:
+              # SELL
+              sellHandler(config, currentDollars, cryptoQuantity, "currentAggregatedPrice < tradeAggregatedPrice")
+              time.sleep(timeBetweenRuns)
+              continue
 
         # SELL strategy 3 (sell if realPrice(sell_price_abruptly_drops_minutes ago) dropped by sell_price_abruptly_drops_index_treshold
-        timestampMinutesAgo = currentTime - (60 * int(config["sell_price_abruptly_drops_minutes"]))
-        realPriceAgo = getFirstRealPriceAfterTimestamp(config, coin, timestampMinutesAgo)
-        realPriceDiffPrice = currentRealPrice - realPriceAgo
-        realPriceAgoIndex = realPriceDiffPrice / realPriceAgo
-        if realPriceAgoIndex < (-1) * float(config["sell_price_abruptly_drops_index_treshold"]):
-          # SELL
-          sellHandler(config, currentDollars, cryptoQuantity, "Seems abrupt drop. Sell.")
-          time.sleep(timeBetweenRuns)
-          continue
+        if config["use_strategy_sell_price_abruptly_drops"] == "yes":
+          timestampMinutesAgo = currentTime - (60 * int(config["sell_price_abruptly_drops_minutes"]))
+          realPriceAgo = getFirstRealPriceAfterTimestamp(config, coin, timestampMinutesAgo)
+          realPriceDiffPrice = currentRealPrice - realPriceAgo
+          realPriceAgoIndex = realPriceDiffPrice / realPriceAgo
+          if realPriceAgoIndex < (-1) * float(config["sell_price_abruptly_drops_index_treshold"]):
+            # SELL
+            sellHandler(config, currentDollars, cryptoQuantity, "Seems abrupt drop. Sell.")
+            time.sleep(timeBetweenRuns)
+            continue
 
       else:
         # SELL strategy 4. Sell with the same logic as buy but reverse.
@@ -490,18 +492,18 @@ def trade(config):
             buyReason = "Seems increase. Buy"
           # Buy
           # So it seems that we want to buy. We will calculate if currentAggregatedPrice is less than the maximumAggregatedPrice, for the maximum price in the last 30 minutes. If current is higher, will buy.
-
-#           firstTimestampToLookForMaximumBeforeBuy = currentTime - (60 * int(config["minutes_lookback_maximum_before_buy"]))
-#           log.info("DEBUG - bot - try to getMaximumPriceAfterTimestamp")
-#           maximumPrice, maximumAggregatedPrice = getMaximumPriceAfterTimestamp(config, firstTimestampToLookForMaximumBeforeBuy)
-#           log.info("Found in the last " + str(config["minutes_lookback_maximum_before_buy"]) + " minutes:")
-#           log.info("maximumPrice = " + str(maximumPrice))
-#           log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
-#           if maximumAggregatedPrice > currentAggregatedPrice:
-#             log.info("%%%%%%%%%%%%%")
-#             log.info("We should have bought, but maximumAggregatedPrice < currentAggregatedPrice. Continue.")
-#             time.sleep(timeBetweenRuns)
-#             continue
+          if config["use_strategy_look_for_maximum_before_buy"] == "yes":
+            firstTimestampToLookForMaximumBeforeBuy = currentTime - (60 * int(config["minutes_lookback_maximum_before_buy"]))
+            log.info("DEBUG - bot - try to getMaximumPriceAfterTimestamp")
+            maximumPrice, maximumAggregatedPrice = getMaximumPriceAfterTimestamp(config, firstTimestampToLookForMaximumBeforeBuy)
+            log.info("Found in the last " + str(config["minutes_lookback_maximum_before_buy"]) + " minutes:")
+            log.info("maximumPrice = " + str(maximumPrice))
+            log.info("maximumAggregatedPrice = " + str(maximumAggregatedPrice))
+            if maximumAggregatedPrice > currentAggregatedPrice:
+              log.info("%%%%%%%%%%%%%")
+              log.info("We should have bought, but maximumAggregatedPrice < currentAggregatedPrice. Continue.")
+              time.sleep(timeBetweenRuns)
+              continue
 
           buyHandler(config, currentDollars, cryptoQuantity, buyReason)
           time.sleep(timeBetweenRuns)

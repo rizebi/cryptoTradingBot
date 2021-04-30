@@ -20,7 +20,7 @@ def createTables(config):
   log = config["log"]
   databaseClient = config["databaseClient"]
   sendMessage = config["sendMessage"]
-  log.info("Check if table <trade_history> exits")
+  log.info("Check if table <trade_history> exists")
   databaseCursor = databaseClient.cursor()
   databaseCursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
   tables = databaseCursor.fetchall()
