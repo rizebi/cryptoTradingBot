@@ -161,7 +161,7 @@ def buyCrypto(config):
         order = binanceClient.order_market_buy(symbol="BTCUSDT", quantity=(quantityWanted))
       else:
         order = "dummy"
-        message = "[INFO] Running in dry-run mode. No BUY Crypto order sent"
+        message = "[INFO] Running in dry_run mode. No BUY Crypto order sent"
         log.info(message)
         sendMessage(config, message)
     except BinanceAPIException as e:
@@ -235,7 +235,7 @@ def sellCrypto(config):
         order = binanceClient.order_market_sell(symbol="BTCUSDT", quantity=(quantityWanted))
       else:
         order = "dummy"
-        message = "[INFO] Running in dry-run mode. No SELL Crypto order sent"
+        message = "[INFO] Running in dry_run mode. No SELL Crypto order sent"
         log.info(message)
         sendMessage(config, message)
     except BinanceAPIException as e:

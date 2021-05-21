@@ -1,4 +1,4 @@
-# docker build -f Docker/Dockerfile -t ebieusebiu/cryptoFromExisting .
+# docker build -f Docker/Dockerfile -t ebieusebiu/cryptofromexisting .
 
 FROM ebieusebiu/crypto
 
