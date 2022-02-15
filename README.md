@@ -1,3 +1,11 @@
+# What is this?
+This is a Crypto trading bot, with intergration with Binance.
+It needs more work and strategy enhancements to produce any profits.
+At a very high level, it scrapes the prices every X 10 seconds, store them in a local database, and then tries to anticipate the change in price in order buy/sell/hold.
+Unfortunately this is the million dollars idea that cannot be solved without complex maths, and even with that, the profit is not 100% sure.
+
+This was more of an excercise of coding / designing / deploying.
+
 # Base idea
 Currently, the bot works on volatile markets. The more volatile the market is, the better.
 
