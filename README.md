@@ -6,6 +6,17 @@ Unfortunately this is the million dollars idea that cannot be solved without com
 
 This was more of an excercise of coding / designing / deploying.
 
+# Architecture
+![alt text](https://github.com/rizebi/myprecious/blob/master/Diagram.png?raw=true)
+
+
+Check the Diagram.png file if not displayed correctly. The minimum parts are:
+- scraper
+  - it scrapes each minute for price data
+- database
+- bot
+  - it makes the trades
+
 # Base idea
 Currently, the bot works on volatile markets. The more volatile the market is, the better.
 
@@ -49,17 +60,6 @@ Algorithm:
       - SELL. Peak treshold exceeded
   - else
     - WAIT. Treshold not exceeded.
-
-# Architecture
-![alt text](https://github.com/rizebi/myprecious/blob/master/Diagram.png?raw=true)
-
-
-Check the Diagram.png file if not displayed correctly. The minimum parts are:
-- scraper
-  - it scrapes each minute for price data
-- database
-- bot
-  - it makes the trades
 
 # Construct configuration.cfg
 - Start from .configration-sample.cfg. The best parameters found until now are there
